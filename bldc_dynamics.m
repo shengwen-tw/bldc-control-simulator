@@ -1,4 +1,16 @@
 classdef bldc_dynamics
+    properties
+        R = 0.7;          %resistance [ohm]
+        L = 2.72;         %self-inductance [mH]
+        M = 1.5;          %mutual-inductance [mH]
+        lambda_m = 0.105; %flux linkage of the motor [wb]
+        P = 4;            %number of the motor poles
+        Jm = 0.000284;    %inertia of the motor [kg*m/sec^2]
+        Jl = 0;           %inertia of the load [kg*m/sec^2]
+        B = 0.02;         %motor viscous friction constant [N*m/rad/sec]
+        Kt = 1;           %torque-current constant
+    end
+    
     methods
         
         function retval = back_emf_fa(obj, theta_r)
