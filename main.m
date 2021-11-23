@@ -3,6 +3,7 @@ close all;
 ITERATION_TIMES = 10000;
 
 bldc = bldc_dynamics;
+bldc = bldc.init();
 
 theta_r = zeros(1, ITERATION_TIMES);
 fa = zeros(1, ITERATION_TIMES);
