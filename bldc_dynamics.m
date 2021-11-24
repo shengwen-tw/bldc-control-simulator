@@ -26,8 +26,8 @@ classdef bldc_dynamics
         x = [0;            %initial phase A current
              0;            %initial phase B current
              0;            %initial phase C current
-             deg2rad(10);  %initial motor speed
-             deg2rad(50)]; %initial motor position
+             deg2rad(50);  %initial motor speed
+             deg2rad(150)]; %initial motor position
         u = zeros(4, 1);  %control vector = [v_a; v_b; v_c; T_l]
         e = zeros(3, 1);  %back emf vector = [e_a; e_b; e_c]        
     end
@@ -65,10 +65,10 @@ classdef bldc_dynamics
             %A matrix is time variant, update the entry corresponding to
             %the back EMF
             lambda_div_J = obj.lambda_m / obj.J;
-            A(4, 1) = lambda_div_J * obj.f_a;
-            A(4, 2) = lambda_div_J * obj.f_b;
-            A(4, 3) = lambda_div_J * obj.f_c;
-            
+            obj.A(4, 1) = lambda_div_J * obj.f_a;
+            obj.A(4, 2) = lambda_div_J * obj.f_b;
+            obj.A(4, 3) = lambda_div_J * obj.f_c;
+
             %x_dot = Ax + Bu + Ce
             x_dot = obj.A*obj.x + obj.B*obj.u + obj.C*obj.e;
         end

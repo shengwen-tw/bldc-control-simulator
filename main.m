@@ -29,6 +29,36 @@ time_arr = zeros(1, ITERATION_TIMES);
 for i = 1: ITERATION_TIMES
     bldc = bldc.update();
 
+    v_ctrl = 100; %control voltage
+    bldc.u(4) = 0; %no external torque
+    
+    %bldc speed control
+    if(bldc.x(5) >= deg2rad(0) && bldc.x(5) < deg2rad(60))
+        bldc.u(1) = v_ctrl;
+        bldc.u(2) = -v_ctrl;
+        bldc.u(3) = 0;
+    elseif(bldc.x(5) >= deg2rad(60) && bldc.x(5) < deg2rad(120))
+        bldc.u(1) = v_ctrl;
+        bldc.u(2) = 0;
+        bldc.u(3) = -v_ctrl;
+    elseif(bldc.x(5) >= deg2rad(120) && bldc.x(5) < deg2rad(180))
+        bldc.u(1) = 0;
+        bldc.u(2) = v_ctrl;
+        bldc.u(3) = -v_ctrl;
+    elseif(bldc.x(5) >= deg2rad(180) && bldc.x(5) < deg2rad(240))
+        bldc.u(1) = -v_ctrl;
+        bldc.u(2) = v_ctrl;
+        bldc.u(3) = 0;
+    elseif(bldc.x(5) >= deg2rad(240) && bldc.x(5) < deg2rad(300))
+        bldc.u(1) = -v_ctrl;
+        bldc.u(2) = 0;
+        bldc.u(3) = v_ctrl;
+    elseif(bldc.x(5) >= deg2rad(300) && bldc.x(5) < deg2rad(360))
+        bldc.u(1) = 0;
+        bldc.u(2) = -v_ctrl;
+        bldc.u(3) = v_ctrl;
+    end
+    
     %currents of motor phases
     i_a(i) = bldc.x(1);
     i_b(i) = bldc.x(2);
