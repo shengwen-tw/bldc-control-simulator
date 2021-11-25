@@ -34,29 +34,17 @@ for i = 1: ITERATION_TIMES
     
     %bldc speed control
     if(bldc.x(5) >= deg2rad(0) && bldc.x(5) < deg2rad(60))
-        bldc.u(1) = v_ctrl;
-        bldc.u(2) = -v_ctrl;
-        bldc.u(3) = 0;
+        bldc = bldc.set_mosfet_gate(1, 0, 0, 1, 0, 0);
     elseif(bldc.x(5) >= deg2rad(60) && bldc.x(5) < deg2rad(120))
-        bldc.u(1) = v_ctrl;
-        bldc.u(2) = 0;
-        bldc.u(3) = -v_ctrl;
+        bldc = bldc.set_mosfet_gate(1, 0, 0, 0, 0, 1);
     elseif(bldc.x(5) >= deg2rad(120) && bldc.x(5) < deg2rad(180))
-        bldc.u(1) = 0;
-        bldc.u(2) = v_ctrl;
-        bldc.u(3) = -v_ctrl;
+        bldc = bldc.set_mosfet_gate(0, 0, 1, 0, 0, 1);
     elseif(bldc.x(5) >= deg2rad(180) && bldc.x(5) < deg2rad(240))
-        bldc.u(1) = -v_ctrl;
-        bldc.u(2) = v_ctrl;
-        bldc.u(3) = 0;
+        bldc = bldc.set_mosfet_gate(0, 1, 1, 0, 0, 0);
     elseif(bldc.x(5) >= deg2rad(240) && bldc.x(5) < deg2rad(300))
-        bldc.u(1) = -v_ctrl;
-        bldc.u(2) = 0;
-        bldc.u(3) = v_ctrl;
+        bldc = bldc.set_mosfet_gate(0, 1, 0, 0, 1, 0);
     elseif(bldc.x(5) >= deg2rad(300) && bldc.x(5) < deg2rad(360))
-        bldc.u(1) = 0;
-        bldc.u(2) = -v_ctrl;
-        bldc.u(3) = v_ctrl;
+        bldc = bldc.set_mosfet_gate(0, 0, 0, 1, 1, 0);
     end
     
     %currents of motor phases
@@ -114,7 +102,7 @@ ylabel('motor speed');
 figure('Name', 'theta_r');
 plot(time_arr(:), rad2deg(theta_r(:)));
 xlim([0 time_arr(end)]);
-ylim([-200 200]);
+ylim([-20 380]);
 xlabel('time [s]');
 ylabel('motor position');
 
@@ -123,19 +111,19 @@ figure('Name', 'Back EMF');
 subplot (3, 1, 1);
 plot(time_arr(:), e_a(:));
 xlim([0 time_arr(end)]);
-ylim([-5 15]);
+ylim([-5 5]);
 xlabel('time [s]');
 ylabel('e_a');
 subplot (3, 1, 2);
 plot(time_arr(:), e_b(:));
 xlim([0 time_arr(end)]);
-ylim([-15 15]);
+ylim([-5 5]);
 xlabel('time [s]');
 ylabel('e_b');
 subplot (3, 1, 3);
 plot(time_arr(:), e_c(:));
 xlim([0 time_arr(end)]);
-ylim([-15 15]);
+ylim([-5 5]);
 xlabel('time [s]');
 ylabel('e_c');
 

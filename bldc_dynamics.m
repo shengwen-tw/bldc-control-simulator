@@ -26,10 +26,21 @@ classdef bldc_dynamics
         x = [0;            %initial phase A current
              0;            %initial phase B current
              0;            %initial phase C current
-             deg2rad(50);  %initial motor speed
-             deg2rad(150)]; %initial motor position
+             deg2rad(0);  %initial motor speed
+             deg2rad(0)]; %initial motor position
         u = zeros(4, 1);  %control vector = [v_a; v_b; v_c; T_l]
-        e = zeros(3, 1);  %back emf vector = [e_a; e_b; e_c]        
+        e = zeros(3, 1);  %back emf vector = [e_a; e_b; e_c]
+        
+        %MOSFET signals
+        S1 = 0;
+        S2 = 0;
+        S3 = 0;
+        S4 = 0;
+        S5 = 0;
+        S6 = 0;
+        
+        %BLDC control voltage
+        v_bldc = 100;
     end
     
     methods
@@ -73,6 +84,92 @@ classdef bldc_dynamics
             x_dot = obj.A*obj.x + obj.B*obj.u + obj.C*obj.e;
         end
         
+        function signal = synthesis_gate_signal(obj, S1, S2, S3, S4, S5, S6)
+            signal = bitshift(S6, 5) + ...
+                     bitshift(S5, 4) + ...
+                     bitshift(S4, 3) + ...
+                     bitshift(S3, 2) + ...
+                     bitshift(S2, 1) + ...
+                     bitshift(S1, 0);
+        end
+        
+        function ret_obj = set_mosfet_gate(obj, S1, S2, S3, S4, S5, S6)
+            obj.S1 = S1;
+            obj.S2 = S2;
+            obj.S3 = S3;
+            obj.S4 = S4;
+            obj.S5 = S5;
+            obj.S6 = S6;
+            
+            %signal = obj.synthesis_gate_signal(S1, S2, S3, S4, S5, S6);
+            %disp(signal);
+            
+            ret_obj = obj;
+        end
+        
+        function ret_obj = gate_signal_to_control_voltage(obj)
+            signal = obj.synthesis_gate_signal(obj.S1, obj.S2, obj.S3, obj.S4, obj.S5, obj.S6);
+            
+            switch signal
+                case 0  %all phase off
+                    obj.u(1) = 0;
+                    obj.u(2) = 0;
+                    obj.u(3) = 0;
+                case 1  %phase a charge
+                    obj.u(1) = +obj.v_bldc;
+                    obj.u(2) = 0;
+                    obj.u(3) = 0;
+                case 2  %phase a discharge
+                    obj.u(1) = 0;
+                    obj.u(2) = 0;
+                    obj.u(3) = 0;
+                case 4  %phase b charge
+                    obj.u(1) = 0;
+                    obj.u(2) = 0;
+                    obj.u(3) = +obj.v_bldc;
+                case 8  %phase b discharge
+                    obj.u(1) = 0;
+                    obj.u(2) = 0;
+                    obj.u(3) = 0;
+                case 16 %phase c charge
+                    obj.u(1) = 0;
+                    obj.u(2) = 0;
+                    obj.u(3) = +obj.v_bldc;
+                case 32 %phase c discharge
+                    obj.u(1) = 0;
+                    obj.u(2) = 0;
+                    obj.u(3) = 0;
+                case 9 %i_a(+), i_b(-)
+                    obj.u(1) = +obj.v_bldc;
+                    obj.u(2) = -obj.v_bldc;
+                    obj.u(3) = 0;
+                case 33 %i_a(+), i_c(-)
+                    obj.u(1) = +obj.v_bldc;
+                    obj.u(2) = 0;
+                    obj.u(3) = -obj.v_bldc;
+                case 36 %i_b(+), i_c(-)
+                    obj.u(1) = 0;
+                    obj.u(2) = +obj.v_bldc;
+                    obj.u(3) = -obj.v_bldc;
+                case 6 %i_b(+), i_a(-)
+                    obj.u(1) = -obj.v_bldc;
+                    obj.u(2) = +obj.v_bldc;
+                    obj.u(3) = 0;
+                case 18 %i_c(+), i_a(-)
+                    obj.u(1) = -obj.v_bldc;
+                    obj.u(2) = 0;
+                    obj.u(3) = +obj.v_bldc;
+                case 24 %i_c(+), i_b(-)
+                    obj.u(1) = 0;
+                    obj.u(2) = -obj.v_bldc;
+                    obj.u(3) = +obj.v_bldc;
+                otherwise
+                    warning('unexpected gate signal combination.');
+            end
+            
+            ret_obj = obj;
+        end
+        
         function f_next = integrator(obj, f_now, f_dot, dt)
             %eulers method
             f_next = [f_now(1) + (f_dot(1) * dt);
@@ -83,6 +180,9 @@ classdef bldc_dynamics
         end
         
         function ret_obj = update(obj)
+            %convert MOSFET control signals to voltage
+            obj = obj.gate_signal_to_control_voltage();
+            
             %update the back EMF according to the motor angle
             obj.f_a = obj.back_emf_fa(obj.x(5));
             obj.f_b = obj.back_emf_fb(obj.x(5));
