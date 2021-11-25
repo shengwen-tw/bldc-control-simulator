@@ -46,12 +46,17 @@ for i = 1: ITERATION_TIMES
     elseif(bldc.x(5) >= deg2rad(300) && bldc.x(5) < deg2rad(360))
         bldc = bldc.set_mosfet_gate(0, 0, 0, 1, 1, 0);
     end
+
+    %currents of motor phases
+    v_a(i) = bldc.u(1);
+    v_b(i) = bldc.u(2);
+    v_c(i) = bldc.u(3);
     
     %currents of motor phases
     i_a(i) = bldc.x(1);
     i_b(i) = bldc.x(2);
     i_c(i) = bldc.x(3);
-    
+
     %motor speed
     omega_m(i) = bldc.x(4);
     %motor position
@@ -91,6 +96,27 @@ xlim([0 time_arr(end)]);
 ylim([-1.3 1.3]);
 xlabel('time [s]');
 ylabel('i_c');
+
+%control voltage
+figure('Name', 'Control votage');
+subplot (3, 1, 1);
+plot(time_arr(:), v_a(:));
+xlim([0 time_arr(end)]);
+ylim([-15 15]);
+xlabel('time [s]');
+ylabel('v_a');
+subplot (3, 1, 2);
+plot(time_arr(:), v_b(:));
+xlim([0 time_arr(end)]);
+ylim([-15 15]);
+xlabel('time [s]');
+ylabel('v_b');
+subplot (3, 1, 3);
+plot(time_arr(:), v_c(:));
+xlim([0 time_arr(end)]);
+ylim([-15 15]);
+xlabel('time [s]');
+ylabel('v_c');
 
 figure('Name', 'omega_m');
 plot(time_arr(:), omega_m(:));

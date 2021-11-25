@@ -40,7 +40,7 @@ classdef bldc_dynamics
         S6 = 0;
         
         %BLDC control voltage
-        v_bldc = 100;
+        v_bldc = 10;
     end
     
     methods
@@ -71,19 +71,7 @@ classdef bldc_dynamics
             
             ret_obj = obj;
         end
-        
-        function x_dot = update_dynamics(obj)                        
-            %A matrix is time variant, update the entry corresponding to
-            %the back EMF
-            lambda_div_J = obj.lambda_m / obj.J;
-            obj.A(4, 1) = lambda_div_J * obj.f_a;
-            obj.A(4, 2) = lambda_div_J * obj.f_b;
-            obj.A(4, 3) = lambda_div_J * obj.f_c;
-
-            %x_dot = Ax + Bu + Ce
-            x_dot = obj.A*obj.x + obj.B*obj.u + obj.C*obj.e;
-        end
-        
+             
         function signal = synthesis_gate_signal(obj, S1, S2, S3, S4, S5, S6)
             signal = bitshift(S6, 5) + ...
                      bitshift(S5, 4) + ...
@@ -170,6 +158,18 @@ classdef bldc_dynamics
             ret_obj = obj;
         end
         
+        function x_dot = update_dynamics(obj)                        
+            %A matrix is time variant, update the entry corresponding to
+            %the back EMF
+            lambda_div_J = obj.lambda_m / obj.J;
+            obj.A(4, 1) = lambda_div_J * obj.f_a;
+            obj.A(4, 2) = lambda_div_J * obj.f_b;
+            obj.A(4, 3) = lambda_div_J * obj.f_c;
+
+            %x_dot = Ax + Bu + Ce
+            x_dot = obj.A*obj.x + obj.B*obj.u + obj.C*obj.e;
+        end
+        
         function f_next = integrator(obj, f_now, f_dot, dt)
             %eulers method
             f_next = [f_now(1) + (f_dot(1) * dt);
@@ -195,6 +195,8 @@ classdef bldc_dynamics
             
             x_dot = obj.update_dynamics();
             obj.x = obj.integrator(obj.x, x_dot, obj.dt);
+            
+            disp([x_dot(2) obj.x(2)])
             
             %restrict motor position in +-pi
             obj.x(5) = mod(obj.x(5), 2*pi);
