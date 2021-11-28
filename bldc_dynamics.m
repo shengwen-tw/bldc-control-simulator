@@ -31,6 +31,10 @@ classdef bldc_dynamics
         u = zeros(4, 1);  %control vector = [v_a; v_b; v_c; T_l]
         e = zeros(3, 1);  %back emf vector = [e_a; e_b; e_c]
         
+        x_dot = zeros(5, 1);
+        
+        v = zeros(3, 1);  %voltage of the 3 phases
+        
         %MOSFET signals
         S1 = 0;
         S2 = 0;
@@ -158,7 +162,7 @@ classdef bldc_dynamics
             ret_obj = obj;
         end
         
-        function x_dot = update_dynamics(obj)                        
+        function ret_obj = update_dynamics(obj)                        
             %A matrix is time variant, update the entry corresponding to
             %the back EMF
             lambda_div_J = obj.lambda_m / obj.J;
@@ -167,7 +171,9 @@ classdef bldc_dynamics
             obj.A(4, 3) = lambda_div_J * obj.f_c;
 
             %x_dot = Ax + Bu + Ce
-            x_dot = obj.A*obj.x + obj.B*obj.u + obj.C*obj.e;
+            obj.x_dot = obj.A*obj.x + obj.B*obj.u + obj.C*obj.e;
+            
+            ret_obj = obj;
         end
         
         function f_next = integrator(obj, f_now, f_dot, dt)
@@ -193,13 +199,18 @@ classdef bldc_dynamics
             obj.e(2) = omega_times_lambda * obj.f_b;
             obj.e(3) = omega_times_lambda * obj.f_c;
             
-            x_dot = obj.update_dynamics();
-            obj.x = obj.integrator(obj.x, x_dot, obj.dt);
-            
-            disp([x_dot(2) obj.x(2)])
-            
+            obj = obj.update_dynamics();
+            obj.x = obj.integrator(obj.x, obj.x_dot, obj.dt);
+                        
             %restrict motor position in +-pi
             obj.x(5) = mod(obj.x(5), 2*pi);
+            
+            %update the voltage of 3 phases
+            i = [obj.x(1); obj.x(2); obj.x(3)];
+            i_dot = [obj.x_dot(1); obj.x_dot(2); obj.x_dot(3)];
+            obj.v = (obj.R .* eye(3)) * i + ...
+                ((obj.L - obj.M) .* eye(3)) * i_dot + ...
+                obj.e;  
             
             ret_obj = obj;
         end

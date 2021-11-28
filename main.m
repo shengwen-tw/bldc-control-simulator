@@ -23,6 +23,10 @@ e_a = zeros(1, ITERATION_TIMES);
 e_b = zeros(1, ITERATION_TIMES);
 e_c = zeros(1, ITERATION_TIMES);
 
+v_a = zeros(1, ITERATION_TIMES);
+v_b = zeros(1, ITERATION_TIMES);
+v_c = zeros(1, ITERATION_TIMES);
+
 %time sequence
 time_arr = zeros(1, ITERATION_TIMES);
 
@@ -71,6 +75,11 @@ for i = 1: ITERATION_TIMES
     f_a(i) = bldc.f_a;
     f_b(i) = bldc.f_b;
     f_c(i) = bldc.f_c;
+    
+    %bldc voltage
+    v_a(i) = bldc.v(1);
+    v_b(i) = bldc.v(2);
+    v_c(i) = bldc.v(3);
     
     %time sequence
     time_arr(i) = (i - 1) * dt;
@@ -173,3 +182,24 @@ xlim([0 time_arr(end)]);
 ylim([-1.3 1.3]);
 xlabel('time [s]');
 ylabel('e_c');
+
+%3 phase voltage of the bldc
+figure('Name', 'voltage');
+subplot (3, 1, 1);
+plot(time_arr(:), v_a(:));
+xlim([0 time_arr(end)]);
+ylim([-13 13]);
+xlabel('time [s]');
+ylabel('v_a');
+subplot (3, 1, 2);
+plot(time_arr(:), v_b(:));
+xlim([0 time_arr(end)]);
+ylim([-13 13]);
+xlabel('time [s]');
+ylabel('v_b');
+subplot (3, 1, 3);
+plot(time_arr(:), v_c(:));
+xlim([0 time_arr(end)]);
+ylim([-13 13]);
+xlabel('time [s]');
+ylabel('v_c');
