@@ -30,27 +30,132 @@ v_c = zeros(1, ITERATION_TIMES);
 %time sequence
 time_arr = zeros(1, ITERATION_TIMES);
 
+%hysteresis control parameters
+i_d = 0.5;       %desited motor speed
+delta_i = 0.1; %hysteresis band
+i_a_d = 0; %desired i_a current
+i_b_d = 0; %desired i_b current
+i_c_d = 0; %desired i_c current
+
 for i = 1: ITERATION_TIMES
     bldc = bldc.update();
 
     v_ctrl = 100; %control voltage
     bldc.u(4) = 0; %no external torque
-    
+        
     %bldc speed control
     if(bldc.x(5) >= deg2rad(0) && bldc.x(5) < deg2rad(60))
-        bldc = bldc.set_mosfet_gate(1, 0, 0, 1, 0, 0);
+        i_a_d = +i_d;
+        i_b_d = -i_d;
+        i_c_d = 0;
     elseif(bldc.x(5) >= deg2rad(60) && bldc.x(5) < deg2rad(120))
-        bldc = bldc.set_mosfet_gate(1, 0, 0, 0, 0, 1);
+        i_a_d = +i_d;
+        i_b_d = 0;
+        i_c_d = -i_d;
     elseif(bldc.x(5) >= deg2rad(120) && bldc.x(5) < deg2rad(180))
-        bldc = bldc.set_mosfet_gate(0, 0, 1, 0, 0, 1);
+        i_a_d = 0;
+        i_b_d = +i_d;
+        i_c_d = -i_d;
     elseif(bldc.x(5) >= deg2rad(180) && bldc.x(5) < deg2rad(240))
-        bldc = bldc.set_mosfet_gate(0, 1, 1, 0, 0, 0);
+        i_a_d = -i_d;
+        i_b_d = +i_d;
+        i_c_d = 0;
     elseif(bldc.x(5) >= deg2rad(240) && bldc.x(5) < deg2rad(300))
-        bldc = bldc.set_mosfet_gate(0, 1, 0, 0, 1, 0);
+        i_a_d = -i_d;
+        i_b_d = 0;
+        i_c_d = +i_d;
     elseif(bldc.x(5) >= deg2rad(300) && bldc.x(5) < deg2rad(360))
-        bldc = bldc.set_mosfet_gate(0, 0, 0, 1, 1, 0);
+        i_a_d = 0;
+        i_b_d = -i_d;
+        i_c_d = +i_d;
     end
 
+    %============================%
+    % hysteresis current control %
+    %============================%
+    S1 = 0;
+    S2 = 0;
+    S3 = 0;
+    S4 = 0;
+    S5 = 0;
+    S6 = 0;
+        
+    %phase b control
+    if(i_a_d >= 0)
+        if(bldc.x(1) <= (i_a_d - delta_i))
+            S1 = 1;
+            S2 = 0;
+        else
+            S1 = 0;
+            S2 = 1;
+        end
+    else
+        if(bldc.x(1) >= (i_a_d + delta_i))
+            S1 = 0;
+            S2 = 1;
+        else
+            S1 = 1;
+            S2 = 0;
+        end
+    end
+    
+    %phase b control
+    if(i_b_d >= 0)
+        if(bldc.x(2) <= (i_b_d - delta_i))
+            S3 = 1;
+            S4 = 0;
+        else
+            S3 = 0;
+            S4 = 1;
+        end
+    else
+        if(bldc.x(2) >= (i_b_d + delta_i))
+            S3 = 0;
+            S4 = 1;
+        else
+            S3 = 1;
+            S4 = 0;
+        end
+    end
+ 
+    %phase b control
+    if(i_c_d >= 0)
+        if(bldc.x(3) <= (i_c_d - delta_i))
+            S5 = 1;
+            S6 = 0;
+        else
+            S5 = 0;
+            S6 = 1;
+        end
+    else
+        if(bldc.x(3) >= (i_c_d + delta_i))
+            S5 = 0;
+            S6 = 1;
+        else
+            S5 = 1;
+            S6 = 0;
+        end
+    end
+    
+    if(i_a_d == 0)
+        S1 = 0;
+        S2 = 0;
+    end
+    
+    if(i_b_d == 0)
+        S3 = 0;
+        S4 = 0;
+    end
+    
+    if(i_c_d == 0)
+        S5 = 0;
+        S6 = 0;
+    end
+    
+    bldc = bldc.set_mosfet_gate(S1, S2, S3, S4, S5, S6);
+    
+    disp([S1 S2 S3 S4 S5 S6])
+    
     %currents of motor phases
     v_a(i) = bldc.u(1);
     v_b(i) = bldc.u(2);
