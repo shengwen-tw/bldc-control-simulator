@@ -44,7 +44,7 @@ classdef bldc_dynamics
         S6 = 0;
         
         %BLDC control voltage
-        v_bldc = 10;
+        v_bldc = 100;
     end
     
     methods
@@ -103,34 +103,6 @@ classdef bldc_dynamics
             signal = obj.synthesis_gate_signal(obj.S1, obj.S2, obj.S3, obj.S4, obj.S5, obj.S6);
             
             switch signal
-                case 0  %all phase off
-                    obj.u(1) = 0;
-                    obj.u(2) = 0;
-                    obj.u(3) = 0;
-                case 1  %phase a charge
-                    obj.u(1) = +obj.v_bldc;
-                    obj.u(2) = 0;
-                    obj.u(3) = 0;
-                case 2  %phase a discharge
-                    obj.u(1) = 0;
-                    obj.u(2) = 0;
-                    obj.u(3) = 0;
-                case 4  %phase b charge
-                    obj.u(1) = 0;
-                    obj.u(2) = 0;
-                    obj.u(3) = +obj.v_bldc;
-                case 8  %phase b discharge
-                    obj.u(1) = 0;
-                    obj.u(2) = 0;
-                    obj.u(3) = 0;
-                case 16 %phase c charge
-                    obj.u(1) = 0;
-                    obj.u(2) = 0;
-                    obj.u(3) = +obj.v_bldc;
-                case 32 %phase c discharge
-                    obj.u(1) = 0;
-                    obj.u(2) = 0;
-                    obj.u(3) = 0;
                 case 9 %i_a(+), i_b(-)
                     obj.u(1) = +obj.v_bldc;
                     obj.u(2) = -obj.v_bldc;
@@ -156,7 +128,10 @@ classdef bldc_dynamics
                     obj.u(2) = -obj.v_bldc;
                     obj.u(3) = +obj.v_bldc;
                 otherwise
-                    warning('unexpected gate signal combination.');
+                    obj.u(1) = 0;
+                    obj.u(2) = 0;
+                    obj.u(3) = 0;
+                    %warning('unexpected gate signal combination.');
             end
             
             ret_obj = obj;
@@ -169,7 +144,7 @@ classdef bldc_dynamics
             obj.A(4, 1) = lambda_div_J * obj.f_a;
             obj.A(4, 2) = lambda_div_J * obj.f_b;
             obj.A(4, 3) = lambda_div_J * obj.f_c;
-
+           
             %x_dot = Ax + Bu + Ce
             obj.x_dot = obj.A*obj.x + obj.B*obj.u + obj.C*obj.e;
             

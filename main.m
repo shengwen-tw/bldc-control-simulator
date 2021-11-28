@@ -31,19 +31,31 @@ v_c = zeros(1, ITERATION_TIMES);
 time_arr = zeros(1, ITERATION_TIMES);
 
 %hysteresis control parameters
-i_d = 0.5;       %desited motor speed
-delta_i = 0.1; %hysteresis band
+i_d = 2.5;      %desited motor speed
+delta_i = 0.01; %hysteresis band
 i_a_d = 0; %desired i_a current
 i_b_d = 0; %desired i_b current
 i_c_d = 0; %desired i_c current
+%
+S1 = 0;
+S2 = 0;
+S3 = 0;
+S4 = 0;
+S5 = 0;
+S6 = 0;
 
 for i = 1: ITERATION_TIMES
     bldc = bldc.update();
 
-    v_ctrl = 100; %control voltage
     bldc.u(4) = 0; %no external torque
         
-    %bldc speed control
+    %==================%
+    % PI speed control %
+    %==================%
+    
+    %=======================%
+    % 6-steps phase control %
+    %=======================%
     if(bldc.x(5) >= deg2rad(0) && bldc.x(5) < deg2rad(60))
         i_a_d = +i_d;
         i_b_d = -i_d;
@@ -73,88 +85,82 @@ for i = 1: ITERATION_TIMES
     %============================%
     % hysteresis current control %
     %============================%
-    S1 = 0;
-    S2 = 0;
-    S3 = 0;
-    S4 = 0;
-    S5 = 0;
-    S6 = 0;
-        
-    %phase b control
-    if(i_a_d >= 0)
-        if(bldc.x(1) <= (i_a_d - delta_i))
+       
+    %phase a control
+    if i_a_d >= 0
+        if bldc.x(1) <= (i_a_d - delta_i)
             S1 = 1;
             S2 = 0;
-        else
+        elseif bldc.x(1) >= (i_a_d + delta_i)
             S1 = 0;
             S2 = 1;
         end
     else
-        if(bldc.x(1) >= (i_a_d + delta_i))
+        if bldc.x(1) >= (i_a_d + delta_i)
             S1 = 0;
             S2 = 1;
-        else
+        elseif bldc.x(1) <= (i_a_d - delta_i)
             S1 = 1;
             S2 = 0;
         end
     end
     
     %phase b control
-    if(i_b_d >= 0)
-        if(bldc.x(2) <= (i_b_d - delta_i))
+    if i_b_d >= 0
+        if bldc.x(2) <= (i_b_d - delta_i)
             S3 = 1;
             S4 = 0;
-        else
+        elseif bldc.x(2) >= (i_b_d + delta_i)
             S3 = 0;
             S4 = 1;
         end
     else
-        if(bldc.x(2) >= (i_b_d + delta_i))
+        if bldc.x(2) >= (i_b_d + delta_i)
             S3 = 0;
             S4 = 1;
-        else
+        elseif bldc.x(2) <= (i_b_d - delta_i)
             S3 = 1;
             S4 = 0;
         end
     end
  
-    %phase b control
-    if(i_c_d >= 0)
-        if(bldc.x(3) <= (i_c_d - delta_i))
+    %phase c control
+    if i_c_d >= 0
+        if bldc.x(3) <= (i_c_d - delta_i)
             S5 = 1;
             S6 = 0;
-        else
+        elseif bldc.x(3) >= (i_c_d + delta_i)
             S5 = 0;
             S6 = 1;
         end
     else
-        if(bldc.x(3) >= (i_c_d + delta_i))
+        if bldc.x(3) >= (i_c_d + delta_i)
             S5 = 0;
             S6 = 1;
-        else
+        elseif bldc.x(3) <= (i_c_d - delta_i)
             S5 = 1;
             S6 = 0;
         end
     end
     
-    if(i_a_d == 0)
+    if(abs(i_a_d) < 0.001)
         S1 = 0;
         S2 = 0;
     end
     
-    if(i_b_d == 0)
+    if(abs(i_b_d) < 0.001)
         S3 = 0;
         S4 = 0;
     end
     
-    if(i_c_d == 0)
+    if(abs(i_c_d) < 0.001)
         S5 = 0;
         S6 = 0;
     end
     
     bldc = bldc.set_mosfet_gate(S1, S2, S3, S4, S5, S6);
     
-    disp([S1 S2 S3 S4 S5 S6])
+    %disp([S1 S2 S3 S4 S5 S6])
     
     %currents of motor phases
     v_a(i) = bldc.u(1);
@@ -195,19 +201,19 @@ figure('Name', 'Current');
 subplot (3, 1, 1);
 plot(time_arr(:), i_a(:));
 xlim([0 time_arr(end)]);
-ylim([-1.3 1.3]);
+ylim([-5 5]);
 xlabel('time [s]');
 ylabel('i_a');
 subplot (3, 1, 2);
 plot(time_arr(:), i_b(:));
 xlim([0 time_arr(end)]);
-ylim([-1.3 1.3]);
+ylim([-5 5]);
 xlabel('time [s]');
 ylabel('i_b');
 subplot (3, 1, 3);
 plot(time_arr(:), i_c(:));
 xlim([0 time_arr(end)]);
-ylim([-1.3 1.3]);
+ylim([-5 5]);
 xlabel('time [s]');
 ylabel('i_c');
 
@@ -216,26 +222,26 @@ figure('Name', 'Control votage');
 subplot (3, 1, 1);
 plot(time_arr(:), v_a(:));
 xlim([0 time_arr(end)]);
-ylim([-15 15]);
+ylim([-110 110]);
 xlabel('time [s]');
 ylabel('v_a');
 subplot (3, 1, 2);
 plot(time_arr(:), v_b(:));
 xlim([0 time_arr(end)]);
-ylim([-15 15]);
+ylim([-110 110]);
 xlabel('time [s]');
 ylabel('v_b');
 subplot (3, 1, 3);
 plot(time_arr(:), v_c(:));
 xlim([0 time_arr(end)]);
-ylim([-15 15]);
+ylim([-110 110]);
 xlabel('time [s]');
 ylabel('v_c');
 
 figure('Name', 'omega_m');
 plot(time_arr(:), omega_m(:));
 xlim([0 time_arr(end)]);
-ylim([-20 20]);
+ylim([-20 50]);
 xlabel('time [s]');
 ylabel('motor speed');
 
@@ -287,24 +293,3 @@ xlim([0 time_arr(end)]);
 ylim([-1.3 1.3]);
 xlabel('time [s]');
 ylabel('e_c');
-
-%3 phase voltage of the bldc
-figure('Name', 'voltage');
-subplot (3, 1, 1);
-plot(time_arr(:), v_a(:));
-xlim([0 time_arr(end)]);
-ylim([-13 13]);
-xlabel('time [s]');
-ylabel('v_a');
-subplot (3, 1, 2);
-plot(time_arr(:), v_b(:));
-xlim([0 time_arr(end)]);
-ylim([-13 13]);
-xlabel('time [s]');
-ylabel('v_b');
-subplot (3, 1, 3);
-plot(time_arr(:), v_c(:));
-xlim([0 time_arr(end)]);
-ylim([-13 13]);
-xlabel('time [s]');
-ylabel('v_c');
