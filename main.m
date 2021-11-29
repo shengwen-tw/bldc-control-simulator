@@ -31,8 +31,8 @@ v_c = zeros(1, ITERATION_TIMES);
 time_arr = zeros(1, ITERATION_TIMES);
 
 %hysteresis control parameters
-i_d = 2.5;      %desited motor speed
 delta_i = 0.01; %hysteresis band
+i_d = zeros(1, ITERATION_TIMES);   %desited motor speed
 i_a_d = zeros(1, ITERATION_TIMES); %desired i_a current
 i_b_d = zeros(1, ITERATION_TIMES); %desired i_b current
 i_c_d = zeros(1, ITERATION_TIMES); %desired i_c current
@@ -48,7 +48,12 @@ for i = 1: ITERATION_TIMES
     bldc = bldc.update();
 
     bldc.u(4) = 0; %no external torque
-        
+    
+    %===========================%
+    % speed trajectory planning %
+    %===========================%
+    i_d(i) = i * dt * 0.2;
+    
     %==================%
     % PI speed control %
     %==================%
@@ -57,29 +62,29 @@ for i = 1: ITERATION_TIMES
     % 6-steps phase control %
     %=======================%
     if(bldc.x(5) >= deg2rad(0) && bldc.x(5) < deg2rad(60))
-        i_a_d(i) = +i_d;
-        i_b_d(i) = -i_d;
+        i_a_d(i) = +i_d(i);
+        i_b_d(i) = -i_d(i);
         i_c_d(i) = 0;
     elseif(bldc.x(5) >= deg2rad(60) && bldc.x(5) < deg2rad(120))
-        i_a_d(i) = +i_d;
+        i_a_d(i) = +i_d(i);
         i_b_d(i) = 0;
-        i_c_d(i) = -i_d;
+        i_c_d(i) = -i_d(i);
     elseif(bldc.x(5) >= deg2rad(120) && bldc.x(5) < deg2rad(180))
         i_a_d(i) = 0;
-        i_b_d(i) = +i_d;
-        i_c_d(i) = -i_d;
+        i_b_d(i) = +i_d(i);
+        i_c_d(i) = -i_d(i);
     elseif(bldc.x(5) >= deg2rad(180) && bldc.x(5) < deg2rad(240))
-        i_a_d(i) = -i_d;
-        i_b_d(i) = +i_d;
+        i_a_d(i) = -i_d(i);
+        i_b_d(i) = +i_d(i);
         i_c_d(i) = 0;
     elseif(bldc.x(5) >= deg2rad(240) && bldc.x(5) < deg2rad(300))
-        i_a_d(i) = -i_d;
+        i_a_d(i) = -i_d(i);
         i_b_d(i) = 0;
-        i_c_d(i) = +i_d;
+        i_c_d(i) = +i_d(i);
     elseif(bldc.x(5) >= deg2rad(300) && bldc.x(5) < deg2rad(360))
         i_a_d(i) = 0;
-        i_b_d(i) = -i_d;
-        i_c_d(i) = +i_d;
+        i_b_d(i) = -i_d(i);
+        i_c_d(i) = +i_d(i);
     end
 
     %============================%
@@ -195,6 +200,13 @@ for i = 1: ITERATION_TIMES
     %time sequence
     time_arr(i) = (i - 1) * dt;
 end
+
+figure('Name', 'Desired current');
+plot(time_arr(:), i_d(:));
+xlim([0 time_arr(end)]);
+ylim([-20 50]);
+xlabel('time [s]');
+ylabel('desired current');
 
 %3-phase back EMF
 figure('Name', 'Current');
