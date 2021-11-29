@@ -52,7 +52,8 @@ for i = 1: ITERATION_TIMES
     %===========================%
     % speed trajectory planning %
     %===========================%
-    i_d(i) = i * dt * 0.2;
+    i_d(i) = i * dt * 0.25;
+    %i_d(i) = 1 * sin(2 * i * dt);
     
     %==================%
     % PI speed control %
@@ -251,11 +252,11 @@ xlabel('time [s]');
 ylabel('v_c');
 
 figure('Name', 'omega_m');
-plot(time_arr(:), omega_m(:));
+plot(time_arr(:), 9.5493 .* omega_m(:));
 xlim([0 time_arr(end)]);
 ylim([-20 50]);
 xlabel('time [s]');
-ylabel('motor speed');
+ylabel('motor speed [RPM]');
 
 figure('Name', 'theta_r');
 plot(time_arr(:), rad2deg(theta_r(:)));
