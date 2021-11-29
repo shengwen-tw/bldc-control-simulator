@@ -33,9 +33,9 @@ time_arr = zeros(1, ITERATION_TIMES);
 %hysteresis control parameters
 i_d = 2.5;      %desited motor speed
 delta_i = 0.01; %hysteresis band
-i_a_d = 0; %desired i_a current
-i_b_d = 0; %desired i_b current
-i_c_d = 0; %desired i_c current
+i_a_d = zeros(1, ITERATION_TIMES); %desired i_a current
+i_b_d = zeros(1, ITERATION_TIMES); %desired i_b current
+i_c_d = zeros(1, ITERATION_TIMES); %desired i_c current
 %
 S1 = 0;
 S2 = 0;
@@ -57,29 +57,29 @@ for i = 1: ITERATION_TIMES
     % 6-steps phase control %
     %=======================%
     if(bldc.x(5) >= deg2rad(0) && bldc.x(5) < deg2rad(60))
-        i_a_d = +i_d;
-        i_b_d = -i_d;
-        i_c_d = 0;
+        i_a_d(i) = +i_d;
+        i_b_d(i) = -i_d;
+        i_c_d(i) = 0;
     elseif(bldc.x(5) >= deg2rad(60) && bldc.x(5) < deg2rad(120))
-        i_a_d = +i_d;
-        i_b_d = 0;
-        i_c_d = -i_d;
+        i_a_d(i) = +i_d;
+        i_b_d(i) = 0;
+        i_c_d(i) = -i_d;
     elseif(bldc.x(5) >= deg2rad(120) && bldc.x(5) < deg2rad(180))
-        i_a_d = 0;
-        i_b_d = +i_d;
-        i_c_d = -i_d;
+        i_a_d(i) = 0;
+        i_b_d(i) = +i_d;
+        i_c_d(i) = -i_d;
     elseif(bldc.x(5) >= deg2rad(180) && bldc.x(5) < deg2rad(240))
-        i_a_d = -i_d;
-        i_b_d = +i_d;
-        i_c_d = 0;
+        i_a_d(i) = -i_d;
+        i_b_d(i) = +i_d;
+        i_c_d(i) = 0;
     elseif(bldc.x(5) >= deg2rad(240) && bldc.x(5) < deg2rad(300))
-        i_a_d = -i_d;
-        i_b_d = 0;
-        i_c_d = +i_d;
+        i_a_d(i) = -i_d;
+        i_b_d(i) = 0;
+        i_c_d(i) = +i_d;
     elseif(bldc.x(5) >= deg2rad(300) && bldc.x(5) < deg2rad(360))
-        i_a_d = 0;
-        i_b_d = -i_d;
-        i_c_d = +i_d;
+        i_a_d(i) = 0;
+        i_b_d(i) = -i_d;
+        i_c_d(i) = +i_d;
     end
 
     %============================%
@@ -88,18 +88,18 @@ for i = 1: ITERATION_TIMES
        
     %phase a control
     if i_a_d >= 0
-        if bldc.x(1) <= (i_a_d - delta_i)
+        if bldc.x(1) <= (i_a_d(i) - delta_i)
             S1 = 1;
             S2 = 0;
-        elseif bldc.x(1) >= (i_a_d + delta_i)
+        elseif bldc.x(1) >= (i_a_d(i) + delta_i)
             S1 = 0;
             S2 = 1;
         end
     else
-        if bldc.x(1) >= (i_a_d + delta_i)
+        if bldc.x(1) >= (i_a_d(i) + delta_i)
             S1 = 0;
             S2 = 1;
-        elseif bldc.x(1) <= (i_a_d - delta_i)
+        elseif bldc.x(1) <= (i_a_d(i) - delta_i)
             S1 = 1;
             S2 = 0;
         end
@@ -107,18 +107,18 @@ for i = 1: ITERATION_TIMES
     
     %phase b control
     if i_b_d >= 0
-        if bldc.x(2) <= (i_b_d - delta_i)
+        if bldc.x(2) <= (i_b_d(i) - delta_i)
             S3 = 1;
             S4 = 0;
-        elseif bldc.x(2) >= (i_b_d + delta_i)
+        elseif bldc.x(2) >= (i_b_d(i) + delta_i)
             S3 = 0;
             S4 = 1;
         end
     else
-        if bldc.x(2) >= (i_b_d + delta_i)
+        if bldc.x(2) >= (i_b_d(i) + delta_i)
             S3 = 0;
             S4 = 1;
-        elseif bldc.x(2) <= (i_b_d - delta_i)
+        elseif bldc.x(2) <= (i_b_d(i) - delta_i)
             S3 = 1;
             S4 = 0;
         end
@@ -126,34 +126,34 @@ for i = 1: ITERATION_TIMES
  
     %phase c control
     if i_c_d >= 0
-        if bldc.x(3) <= (i_c_d - delta_i)
+        if bldc.x(3) <= (i_c_d(i) - delta_i)
             S5 = 1;
             S6 = 0;
-        elseif bldc.x(3) >= (i_c_d + delta_i)
+        elseif bldc.x(3) >= (i_c_d(i) + delta_i)
             S5 = 0;
             S6 = 1;
         end
     else
-        if bldc.x(3) >= (i_c_d + delta_i)
+        if bldc.x(3) >= (i_c_d(i) + delta_i)
             S5 = 0;
             S6 = 1;
-        elseif bldc.x(3) <= (i_c_d - delta_i)
+        elseif bldc.x(3) <= (i_c_d(i) - delta_i)
             S5 = 1;
             S6 = 0;
         end
     end
     
-    if(abs(i_a_d) < 0.001)
+    if(abs(i_a_d(i)) < 0.001)
         S1 = 0;
         S2 = 0;
     end
     
-    if(abs(i_b_d) < 0.001)
+    if(abs(i_b_d(i)) < 0.001)
         S3 = 0;
         S4 = 0;
     end
     
-    if(abs(i_c_d) < 0.001)
+    if(abs(i_c_d(i)) < 0.001)
         S5 = 0;
         S6 = 0;
     end
@@ -199,19 +199,19 @@ end
 %3-phase back EMF
 figure('Name', 'Current');
 subplot (3, 1, 1);
-plot(time_arr(:), i_a(:));
+plot(time_arr(:), i_a(:), time_arr(:), i_a_d(:));
 xlim([0 time_arr(end)]);
 ylim([-5 5]);
 xlabel('time [s]');
 ylabel('i_a');
 subplot (3, 1, 2);
-plot(time_arr(:), i_b(:));
+plot(time_arr(:), i_b(:), time_arr(:), i_b_d(:));
 xlim([0 time_arr(end)]);
 ylim([-5 5]);
 xlabel('time [s]');
 ylabel('i_b');
 subplot (3, 1, 3);
-plot(time_arr(:), i_c(:));
+plot(time_arr(:), i_c(:), time_arr(:), i_c_d(:));
 xlim([0 time_arr(end)]);
 ylim([-5 5]);
 xlabel('time [s]');
