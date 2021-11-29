@@ -10,19 +10,24 @@ bldc = bldc.init(dt);
 i_a = zeros(1, ITERATION_TIMES);
 i_b = zeros(1, ITERATION_TIMES);
 i_c = zeros(1, ITERATION_TIMES);
+
 %motor speed
 omega_m = zeros(1, ITERATION_TIMES);
+
 %motor position
 theta_r = zeros(1, ITERATION_TIMES);
+
 %3-phase back EMF
 e_a = zeros(1, ITERATION_TIMES);
 e_b = zeros(1, ITERATION_TIMES);
 e_c = zeros(1, ITERATION_TIMES);
-%normalized 3-phase back EMF
-e_a = zeros(1, ITERATION_TIMES);
-e_b = zeros(1, ITERATION_TIMES);
-e_c = zeros(1, ITERATION_TIMES);
 
+%normalized 3-phase back EMF
+f_a = zeros(1, ITERATION_TIMES);
+f_b = zeros(1, ITERATION_TIMES);
+f_c = zeros(1, ITERATION_TIMES);
+
+%3-phase control voltages
 v_a = zeros(1, ITERATION_TIMES);
 v_b = zeros(1, ITERATION_TIMES);
 v_c = zeros(1, ITERATION_TIMES);
@@ -32,18 +37,19 @@ time_arr = zeros(1, ITERATION_TIMES);
 
 %PI speed control
 w_d = zeros(1, ITERATION_TIMES);  %desited motor speed
-T_d_last = 0;
-e_w_last = 0;
-Kp = 1.5;
-Ki = 0.01;
+T_d_last = 0; %desired torque of last time interval
+e_w_last = 0; %speed error of last time interval
+Kp = 2.05;    %P gain
+Ki = 0.01;    %I gain
 
-%hysteresis control parameters
-delta_i = 0.01; %hysteresis band
+%ysteresis control parameters
+delta_i = 0.001;                   %hysteresis band
 i_d = zeros(1, ITERATION_TIMES);   %desited current
 i_a_d = zeros(1, ITERATION_TIMES); %desired i_a current
 i_b_d = zeros(1, ITERATION_TIMES); %desired i_b current
 i_c_d = zeros(1, ITERATION_TIMES); %desired i_c current
-%
+
+%MOSFET signal
 S1 = 0;
 S2 = 0;
 S3 = 0;
@@ -59,29 +65,37 @@ for i = 1: ITERATION_TIMES
     %===========================%
     % speed trajectory planning %
     %===========================%
+    %for debugging:
     %i_d(i) = i * dt * 0.25;
     %i_d(i) = 1 * sin(2 * i * dt);
     
-    %linear speed trajectory
-    traj_slope = 10;
-    traj_x = i * dt;
-    w_d = traj_slope * traj_x; %[RPM]
+    %linear speed trajectory planning
+    if 0
+        traj_slope = 10;
+        traj_x = i * dt;
+        w_d(i) = traj_slope * traj_x; %[RPM]
+    end
+    
+    %nonlinear speed trajectory planning
+    if 1
+        traj_coeff = 150;
+        traj_speed = 5;
+        w_d(i) = traj_coeff * abs(sin(traj_speed * i * dt));
+    end
     
     %convert the speed unit from [RPM] to [rad/s]
-    w_d = w_d * 0.10472;
+    w_d(i) = w_d(i) * 0.10472;
     
     %==================%
     % PI speed control %
     %==================%
     %Incremental PI control
-    e_w = w_d - bldc.x(4);
+    e_w = w_d(i) - bldc.x(4);
     T_d = T_d_last + (Kp * (e_w - e_w_last)) + (Ki * e_w);
     e_w_last = e_w;
     T_d_last = T_d;
     i_d(i) = T_d / bldc.Kt;
-    
-    disp([w_d bldc.x(4) e_w])
-    
+           
     %=============================%
     % 6-steps phase control logic %
     %=============================%
@@ -120,17 +134,21 @@ for i = 1: ITERATION_TIMES
         if bldc.x(1) <= (i_a_d(i) - delta_i)
             S1 = 1;
             S2 = 0;
+            bldc.u(1) = bldc.v_bldc / 2;
         elseif bldc.x(1) >= (i_a_d(i) + delta_i)
             S1 = 0;
             S2 = 1;
+            bldc.u(1) = -bldc.v_bldc / 2;
         end
     else
         if bldc.x(1) >= (i_a_d(i) + delta_i)
             S1 = 0;
             S2 = 1;
+            bldc.u(1) = -bldc.v_bldc / 2;
         elseif bldc.x(1) <= (i_a_d(i) - delta_i)
             S1 = 1;
             S2 = 0;
+            bldc.u(1) = bldc.v_bldc / 2;
         end
     end
     
@@ -139,17 +157,21 @@ for i = 1: ITERATION_TIMES
         if bldc.x(2) <= (i_b_d(i) - delta_i)
             S3 = 1;
             S4 = 0;
+            bldc.u(2) = bldc.v_bldc / 2;
         elseif bldc.x(2) >= (i_b_d(i) + delta_i)
             S3 = 0;
             S4 = 1;
+            bldc.u(2) = -bldc.v_bldc / 2;
         end
     else
         if bldc.x(2) >= (i_b_d(i) + delta_i)
             S3 = 0;
             S4 = 1;
+            bldc.u(2) = -bldc.v_bldc / 2;
         elseif bldc.x(2) <= (i_b_d(i) - delta_i)
             S3 = 1;
             S4 = 0;
+            bldc.u(2) = bldc.v_bldc / 2;
         end
     end
  
@@ -158,17 +180,21 @@ for i = 1: ITERATION_TIMES
         if bldc.x(3) <= (i_c_d(i) - delta_i)
             S5 = 1;
             S6 = 0;
+            bldc.u(3) = bldc.v_bldc / 2;
         elseif bldc.x(3) >= (i_c_d(i) + delta_i)
             S5 = 0;
             S6 = 1;
+            bldc.u(3) = -bldc.v_bldc / 2;
         end
     else
         if bldc.x(3) >= (i_c_d(i) + delta_i)
             S5 = 0;
             S6 = 1;
+            bldc.u(3) = -bldc.v_bldc / 2;
         elseif bldc.x(3) <= (i_c_d(i) - delta_i)
             S5 = 1;
             S6 = 0;
+            bldc.u(3) = bldc.v_bldc / 2;
         end
     end
     
@@ -188,9 +214,7 @@ for i = 1: ITERATION_TIMES
     end
     
     bldc = bldc.set_mosfet_gate(S1, S2, S3, S4, S5, S6);
-    
-    %disp([S1 S2 S3 S4 S5 S6])
-    
+       
     %currents of motor phases
     v_a(i) = bldc.u(1);
     v_b(i) = bldc.u(2);
@@ -215,12 +239,7 @@ for i = 1: ITERATION_TIMES
     f_a(i) = bldc.f_a;
     f_b(i) = bldc.f_b;
     f_c(i) = bldc.f_c;
-    
-    %bldc voltage
-    v_a(i) = bldc.v(1);
-    v_b(i) = bldc.v(2);
-    v_c(i) = bldc.v(3);
-    
+       
     %time sequence
     time_arr(i) = (i - 1) * dt;
 end
@@ -230,10 +249,10 @@ plot(time_arr(:), i_d(:));
 xlim([0 time_arr(end)]);
 ylim([-20 50]);
 xlabel('time [s]');
-ylabel('desired current');
+ylabel('i_d');
 
 %3-phase back EMF
-figure('Name', 'Current');
+figure('Name', '3 phase currents');
 subplot (3, 1, 1);
 plot(time_arr(:), i_a(:), time_arr(:), i_a_d(:));
 xlim([0 time_arr(end)]);
@@ -274,19 +293,19 @@ ylim([-110 110]);
 xlabel('time [s]');
 ylabel('v_c');
 
-figure('Name', 'omega_m');
-plot(time_arr(:), 9.5493 .* omega_m(:));
+figure('Name', 'Motor speed');
+plot(time_arr(:), 9.5493 .* omega_m(:), time_arr(:), 9.5493 .* w_d(:));
 xlim([0 time_arr(end)]);
 ylim([-20 200]);
 xlabel('time [s]');
-ylabel('motor speed [RPM]');
+ylabel('\omega_m [RPM]');
 
-figure('Name', 'theta_r');
+figure('Name', 'Motor position');
 plot(time_arr(:), rad2deg(theta_r(:)));
 xlim([0 time_arr(end)]);
 ylim([-20 380]);
 xlabel('time [s]');
-ylabel('motor position');
+ylabel('\theta_r');
 
 %3-phase back EMF
 figure('Name', 'Back EMF');
@@ -316,16 +335,16 @@ plot(time_arr(:), f_a(:));
 xlim([0 time_arr(end)]);
 ylim([-1.3 1.3]);
 xlabel('time [s]');
-ylabel('e_a');
+ylabel('f_a');
 subplot (3, 1, 2);
 plot(time_arr(:), f_b(:));
 xlim([0 time_arr(end)]);
 ylim([-1.3 1.3]);
 xlabel('time [s]');
-ylabel('e_b');
+ylabel('f_b');
 subplot (3, 1, 3);
 plot(time_arr(:), f_c(:));
 xlim([0 time_arr(end)]);
 ylim([-1.3 1.3]);
 xlabel('time [s]');
-ylabel('e_c');
+ylabel('f_c');

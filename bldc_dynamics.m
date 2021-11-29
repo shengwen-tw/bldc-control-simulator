@@ -26,15 +26,13 @@ classdef bldc_dynamics
         x = [0;            %initial phase A current
              0;            %initial phase B current
              0;            %initial phase C current
-             deg2rad(0);  %initial motor speed
-             deg2rad(0)]; %initial motor position
-        u = zeros(4, 1);  %control vector = [v_a; v_b; v_c; T_l]
-        e = zeros(3, 1);  %back emf vector = [e_a; e_b; e_c]
+             deg2rad(0);   %initial motor speed
+             deg2rad(0)];  %initial motor position
+        u = zeros(4, 1);   %control vector = [v_a; v_b; v_c; T_l]
+        e = zeros(3, 1);   %back emf vector = [e_a; e_b; e_c]
         
         x_dot = zeros(5, 1);
-        
-        v = zeros(3, 1);  %voltage of the 3 phases
-        
+              
         %MOSFET signals
         S1 = 0;
         S2 = 0;
@@ -128,10 +126,7 @@ classdef bldc_dynamics
                     obj.u(2) = -obj.v_bldc;
                     obj.u(3) = +obj.v_bldc;
                 otherwise
-                    obj.u(1) = 0;
-                    obj.u(2) = 0;
-                    obj.u(3) = 0;
-                    %warning('unexpected gate signal combination.');
+                    warning('unexpected gate signal combination.');
             end
             
             ret_obj = obj;
@@ -162,7 +157,7 @@ classdef bldc_dynamics
         
         function ret_obj = update(obj)
             %convert MOSFET control signals to voltage
-            obj = obj.gate_signal_to_control_voltage();
+            %obj = obj.gate_signal_to_control_voltage();
             
             %update the back EMF according to the motor angle
             obj.f_a = obj.back_emf_fa(obj.x(5));
@@ -179,13 +174,6 @@ classdef bldc_dynamics
                         
             %restrict motor position in +-pi
             obj.x(5) = mod(obj.x(5), 2*pi);
-            
-            %update the voltage of 3 phases
-            i = [obj.x(1); obj.x(2); obj.x(3)];
-            i_dot = [obj.x_dot(1); obj.x_dot(2); obj.x_dot(3)];
-            obj.v = (obj.R .* eye(3)) * i + ...
-                ((obj.L - obj.M) .* eye(3)) * i_dot + ...
-                obj.e;  
             
             ret_obj = obj;
         end
