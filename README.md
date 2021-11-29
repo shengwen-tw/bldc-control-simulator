@@ -2,7 +2,7 @@
 
 Simulation of different BLDC control algorithms written in MATLAB.
 
-## Currently supported algorithms
+## Currently implemented algorithms
 
 1. PI speed control combined with hysteresis current control
 
