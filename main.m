@@ -30,9 +30,16 @@ v_c = zeros(1, ITERATION_TIMES);
 %time sequence
 time_arr = zeros(1, ITERATION_TIMES);
 
+%PI speed control
+w_d = zeros(1, ITERATION_TIMES);  %desited motor speed
+T_d_last = 0;
+e_w_last = 0;
+Kp = 1.5;
+Ki = 0.01;
+
 %hysteresis control parameters
 delta_i = 0.01; %hysteresis band
-i_d = zeros(1, ITERATION_TIMES);   %desited motor speed
+i_d = zeros(1, ITERATION_TIMES);   %desited current
 i_a_d = zeros(1, ITERATION_TIMES); %desired i_a current
 i_b_d = zeros(1, ITERATION_TIMES); %desired i_b current
 i_c_d = zeros(1, ITERATION_TIMES); %desired i_c current
@@ -52,16 +59,32 @@ for i = 1: ITERATION_TIMES
     %===========================%
     % speed trajectory planning %
     %===========================%
-    i_d(i) = i * dt * 0.25;
+    %i_d(i) = i * dt * 0.25;
     %i_d(i) = 1 * sin(2 * i * dt);
+    
+    %linear speed trajectory
+    traj_slope = 10;
+    traj_x = i * dt;
+    w_d = traj_slope * traj_x; %[RPM]
+    
+    %convert the speed unit from [RPM] to [rad/s]
+    w_d = w_d * 0.10472;
     
     %==================%
     % PI speed control %
     %==================%
+    %Incremental PI control
+    e_w = w_d - bldc.x(4);
+    T_d = T_d_last + (Kp * (e_w - e_w_last)) + (Ki * e_w);
+    e_w_last = e_w;
+    T_d_last = T_d;
+    i_d(i) = T_d / bldc.Kt;
     
-    %=======================%
-    % 6-steps phase control %
-    %=======================%
+    disp([w_d bldc.x(4) e_w])
+    
+    %=============================%
+    % 6-steps phase control logic %
+    %=============================%
     if(bldc.x(5) >= deg2rad(0) && bldc.x(5) < deg2rad(60))
         i_a_d(i) = +i_d(i);
         i_b_d(i) = -i_d(i);
@@ -254,7 +277,7 @@ ylabel('v_c');
 figure('Name', 'omega_m');
 plot(time_arr(:), 9.5493 .* omega_m(:));
 xlim([0 time_arr(end)]);
-ylim([-20 50]);
+ylim([-20 200]);
 xlabel('time [s]');
 ylabel('motor speed [RPM]');
 
