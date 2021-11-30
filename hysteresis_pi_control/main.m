@@ -57,6 +57,10 @@ S4 = 0;
 S5 = 0;
 S6 = 0;
 
+phase_a = zeros(1, ITERATION_TIMES);
+phase_b = zeros(1, ITERATION_TIMES);
+phase_c = zeros(1, ITERATION_TIMES);
+
 for i = 1: ITERATION_TIMES
     bldc = bldc.update();
 
@@ -69,6 +73,11 @@ for i = 1: ITERATION_TIMES
     %i_d(i) = i * dt * 0.25;
     %i_d(i) = 1 * sin(2 * i * dt);
     
+    %fixed speed target
+    if 1
+        w_d(i) = 5;
+    end
+    
     %linear speed trajectory planning
     if 0
         traj_slope = 10;
@@ -77,7 +86,7 @@ for i = 1: ITERATION_TIMES
     end
     
     %nonlinear speed trajectory planning
-    if 1
+    if 0
         traj_coeff = 150;
         traj_speed = 5;
         w_d(i) = traj_coeff * abs(sin(traj_speed * i * dt));
@@ -86,6 +95,27 @@ for i = 1: ITERATION_TIMES
     %convert the speed unit from [RPM] to [rad/s]
     w_d(i) = w_d(i) * 0.10472;
     
+    %========================%
+    % Back-EMF phase sensing %
+    %========================%
+    if bldc.e(1) > 0
+        phase_a(i) = 1;
+    else
+        phase_a(i) = 0;
+    end
+    
+    if bldc.e(2) > 0
+        phase_b(i) = 1;
+    else
+        phase_b(i) = 0;
+    end
+    
+    if bldc.e(3) > 0
+        phase_c(i) = 1;
+    else
+        phase_c(i) = 0;
+    end
+       
     %==================%
     % PI speed control %
     %==================%
@@ -348,3 +378,24 @@ xlim([0 time_arr(end)]);
 ylim([-1.3 1.3]);
 xlabel('time [s]');
 ylabel('f_c');
+
+%3-phase normalized back EMF
+figure('Name', 'Normalized back EMF');
+subplot (3, 1, 1);
+plot(time_arr(:), phase_a(:));
+xlim([0 time_arr(end)]);
+ylim([-1.3 1.3]);
+xlabel('time [s]');
+ylabel('Phase A');
+subplot (3, 1, 2);
+plot(time_arr(:), phase_b(:));
+xlim([0 time_arr(end)]);
+ylim([-1.3 1.3]);
+xlabel('time [s]');
+ylabel('Phase B');
+subplot (3, 1, 3);
+plot(time_arr(:), phase_c(:));
+xlim([0 time_arr(end)]);
+ylim([-1.3 1.3]);
+xlabel('time [s]');
+ylabel('Phase C');
