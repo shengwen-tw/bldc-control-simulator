@@ -57,9 +57,11 @@ S4 = 0;
 S5 = 0;
 S6 = 0;
 
+%rotor position sensing
 phase_a = zeros(1, ITERATION_TIMES);
 phase_b = zeros(1, ITERATION_TIMES);
 phase_c = zeros(1, ITERATION_TIMES);
+theta_sense = zeros(1, ITERATION_TIMES);
 
 for i = 1: ITERATION_TIMES
     bldc = bldc.update();
@@ -74,7 +76,7 @@ for i = 1: ITERATION_TIMES
     %i_d(i) = 1 * sin(2 * i * dt);
     
     %fixed speed target
-    if 1
+    if 0
         w_d(i) = 5;
     end
     
@@ -86,7 +88,7 @@ for i = 1: ITERATION_TIMES
     end
     
     %nonlinear speed trajectory planning
-    if 0
+    if 1
         traj_coeff = 150;
         traj_speed = 5;
         w_d(i) = traj_coeff * abs(sin(traj_speed * i * dt));
@@ -95,27 +97,46 @@ for i = 1: ITERATION_TIMES
     %convert the speed unit from [RPM] to [rad/s]
     w_d(i) = w_d(i) * 0.10472;
     
-    %========================%
-    % Back-EMF phase sensing %
-    %========================%
-    if bldc.e(1) > 0
+    %=====================================================%
+    % Rotor position sensing with back-EMF sensing method %
+    %=====================================================%
+    
+    %phase a
+    if bldc.e(1) >= 0
         phase_a(i) = 1;
     else
         phase_a(i) = 0;
     end
     
-    if bldc.e(2) > 0
+    %phase b
+    if bldc.e(2) >= 0
         phase_b(i) = 1;
     else
         phase_b(i) = 0;
     end
     
-    if bldc.e(3) > 0
+    %phase c
+    if bldc.e(3) >= 0
         phase_c(i) = 1;
     else
         phase_c(i) = 0;
     end
-       
+    
+    %decode the phase signal
+    if isequal([phase_a(i) phase_b(i) phase_c(i)], [1 0 1])
+        theta_sense(i) = 0;
+    elseif isequal([phase_a(i) phase_b(i) phase_c(i)], [1 0 0])
+        theta_sense(i) = 60;
+    elseif isequal([phase_a(i) phase_b(i) phase_c(i)], [1 1 0])
+        theta_sense(i) = 120;
+    elseif isequal([phase_a(i) phase_b(i) phase_c(i)], [0 1 0])
+        theta_sense(i) = 180;
+    elseif isequal([phase_a(i) phase_b(i) phase_c(i)], [0 1 1])
+        theta_sense(i) = 240;
+    elseif isequal([phase_a(i) phase_b(i) phase_c(i)], [0 0 1])
+        theta_sense(i) = 300;
+    end
+    
     %==================%
     % PI speed control %
     %==================%
@@ -130,26 +151,38 @@ for i = 1: ITERATION_TIMES
     % 6-steps phase control logic %
     %=============================%
     if(bldc.x(5) >= deg2rad(0) && bldc.x(5) < deg2rad(60))
+        %disp('motor position between 0-60 degree')
+        %disp([phase_a(i) phase_b(i) phase_c(i)])
         i_a_d(i) = +i_d(i);
         i_b_d(i) = -i_d(i);
         i_c_d(i) = 0;
     elseif(bldc.x(5) >= deg2rad(60) && bldc.x(5) < deg2rad(120))
+        %disp('motor position between 60-120 degree')
+        %disp([phase_a(i) phase_b(i) phase_c(i)])
         i_a_d(i) = +i_d(i);
         i_b_d(i) = 0;
         i_c_d(i) = -i_d(i);
     elseif(bldc.x(5) >= deg2rad(120) && bldc.x(5) < deg2rad(180))
+        %disp('motor position between 120-180 degree')
+        %disp([phase_a(i) phase_b(i) phase_c(i)])
         i_a_d(i) = 0;
         i_b_d(i) = +i_d(i);
         i_c_d(i) = -i_d(i);
     elseif(bldc.x(5) >= deg2rad(180) && bldc.x(5) < deg2rad(240))
+        %disp('motor position between 180-240 degree')
+        %disp([phase_a(i) phase_b(i) phase_c(i)])
         i_a_d(i) = -i_d(i);
         i_b_d(i) = +i_d(i);
         i_c_d(i) = 0;
     elseif(bldc.x(5) >= deg2rad(240) && bldc.x(5) < deg2rad(300))
+        %disp('motor position between 240-300 degree')
+        %disp([phase_a(i) phase_b(i) phase_c(i)])
         i_a_d(i) = -i_d(i);
         i_b_d(i) = 0;
         i_c_d(i) = +i_d(i);
     elseif(bldc.x(5) >= deg2rad(300) && bldc.x(5) < deg2rad(360))
+        %disp('300-360')
+        %disp([phase_a(i) phase_b(i) phase_c(i)])
         i_a_d(i) = 0;
         i_b_d(i) = -i_d(i);
         i_c_d(i) = +i_d(i);
@@ -285,18 +318,21 @@ ylabel('i_d');
 figure('Name', '3 phase currents');
 subplot (3, 1, 1);
 plot(time_arr(:), i_a(:), time_arr(:), i_a_d(:));
+legend('Actual current', 'Desired current');
 xlim([0 time_arr(end)]);
 ylim([-5 5]);
 xlabel('time [s]');
 ylabel('i_a');
 subplot (3, 1, 2);
 plot(time_arr(:), i_b(:), time_arr(:), i_b_d(:));
+legend('Actual current', 'Desired current');
 xlim([0 time_arr(end)]);
 ylim([-5 5]);
 xlabel('time [s]');
 ylabel('i_b');
 subplot (3, 1, 3);
 plot(time_arr(:), i_c(:), time_arr(:), i_c_d(:));
+legend('Actual current', 'Desired current');
 xlim([0 time_arr(end)]);
 ylim([-5 5]);
 xlabel('time [s]');
@@ -325,13 +361,15 @@ ylabel('v_c');
 
 figure('Name', 'Motor speed');
 plot(time_arr(:), 9.5493 .* omega_m(:), time_arr(:), 9.5493 .* w_d(:));
+legend('Actual speed', 'Desired speed');
 xlim([0 time_arr(end)]);
 ylim([-20 200]);
 xlabel('time [s]');
 ylabel('\omega_m [RPM]');
 
 figure('Name', 'Motor position');
-plot(time_arr(:), rad2deg(theta_r(:)));
+plot(time_arr(:), rad2deg(theta_r(:)), time_arr(:), theta_sense(:));
+legend('Actual position', 'Estimated position');
 xlim([0 time_arr(end)]);
 ylim([-20 380]);
 xlabel('time [s]');
@@ -384,18 +422,18 @@ figure('Name', 'Normalized back EMF');
 subplot (3, 1, 1);
 plot(time_arr(:), phase_a(:));
 xlim([0 time_arr(end)]);
-ylim([-1.3 1.3]);
+ylim([-0.2 1.3]);
 xlabel('time [s]');
 ylabel('Phase A');
 subplot (3, 1, 2);
 plot(time_arr(:), phase_b(:));
 xlim([0 time_arr(end)]);
-ylim([-1.3 1.3]);
+ylim([-0.2 1.3]);
 xlabel('time [s]');
 ylabel('Phase B');
 subplot (3, 1, 3);
 plot(time_arr(:), phase_c(:));
 xlim([0 time_arr(end)]);
-ylim([-1.3 1.3]);
+ylim([-0.2 1.3]);
 xlabel('time [s]');
 ylabel('Phase C');
