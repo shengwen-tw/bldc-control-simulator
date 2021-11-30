@@ -4,7 +4,10 @@ Simulation of different BLDC control algorithms written in MATLAB.
 
 ## Currently implemented algorithms
 
-1. PI speed control combined with hysteresis current control
+1. Sensorless square wave commutation
+* PI speed control
+* Hysteresis current control
+* Back-EMF rotor position sensing
 
 ## Run simulation
 
