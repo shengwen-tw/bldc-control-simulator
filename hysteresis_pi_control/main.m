@@ -36,11 +36,12 @@ v_c = zeros(1, ITERATION_TIMES);
 time_arr = zeros(1, ITERATION_TIMES);
 
 %PI speed control
-w_d = zeros(1, ITERATION_TIMES);  %desited motor speed
+w_d = zeros(1, ITERATION_TIMES); %desited motor speed
+T_d = zeros(1, ITERATION_TIMES); %desired torque
 T_d_last = 0; %desired torque of last time interval
 e_w_last = 0; %speed error of last time interval
-Kp = 2.05;    %P gain
-Ki = 0.01;    %I gain
+Kp = 0.25;    %P gain
+Ki = 0.0025;  %I gain
 
 %ysteresis control parameters
 delta_i = 0.001;                   %hysteresis band
@@ -63,13 +64,17 @@ phase_b = zeros(1, ITERATION_TIMES);
 phase_c = zeros(1, ITERATION_TIMES);
 theta_sense = zeros(1, ITERATION_TIMES);
 
+%motor torque
+torque = zeros(1, ITERATION_TIMES);
+w_m_last = 0;
+
 for i = 1: ITERATION_TIMES
     bldc = bldc.update();
 
     bldc.u(4) = 0; %no external torque
-    
+       
     %===========================%
-    % speed trajectory planning %
+    % Speed trajectory planning %
     %===========================%
     %for debugging:
     %i_d(i) = i * dt * 0.25;
@@ -142,10 +147,10 @@ for i = 1: ITERATION_TIMES
     %==================%
     %Incremental PI control
     e_w = w_d(i) - bldc.x(4);
-    T_d = T_d_last + (Kp * (e_w - e_w_last)) + (Ki * e_w);
+    T_d(i) = T_d_last + (Kp * (e_w - e_w_last)) + (Ki * e_w);
     e_w_last = e_w;
-    T_d_last = T_d;
-    i_d(i) = T_d / bldc.Kt;
+    T_d_last = T_d(i);
+    i_d(i) = T_d(i) / bldc.Kt;
            
     %=============================%
     % 6-steps phase control logic %
@@ -302,7 +307,10 @@ for i = 1: ITERATION_TIMES
     f_a(i) = bldc.f_a;
     f_b(i) = bldc.f_b;
     f_c(i) = bldc.f_c;
-       
+    
+    %motor torque
+    torque(i) = bldc.torque;
+    
     %time sequence
     time_arr(i) = (i - 1) * dt;
 end
@@ -437,3 +445,11 @@ xlim([0 time_arr(end)]);
 ylim([-0.2 1.3]);
 xlabel('time [s]');
 ylabel('Phase C');
+
+figure('Name', 'Motor torque');
+plot(time_arr(:), torque(:), time_arr(:), T_d);
+legend('Actual torque', 'Desired torque');
+xlim([0 time_arr(end)]);
+ylim([-0.2, 0.5]);
+xlabel('time [s]');
+ylabel('\tau [Nm]');

@@ -11,7 +11,7 @@ classdef bldc_dynamics
         Jl = 0;           %inertia of the load [kg*m/s^2]
         J = 0;            %J = Jm + Jl
         B_vis = 0.02;     %motor viscous friction constant [N*m/rad/s]
-        Kt = 1;           %torque-current constant
+        Kt = 0.2;         %torque-current constant
         
         f_a = 0;          %back EMF of the phase A
         f_b = 0;          %back EMF of the phase B
@@ -32,7 +32,9 @@ classdef bldc_dynamics
         e = zeros(3, 1);   %back emf vector = [e_a; e_b; e_c]
         
         x_dot = zeros(5, 1);
-              
+        
+        torque = 0;        %torque of the motor
+        
         %MOSFET signals
         S1 = 0;
         S2 = 0;
@@ -174,6 +176,10 @@ classdef bldc_dynamics
                         
             %restrict motor position in +-pi
             obj.x(5) = mod(obj.x(5), 2*pi);
+            
+            %update torque of the motor
+            sum_of_e_times_i = obj.e(1) * obj.x(1) +  obj.e(2) * obj.x(2) + obj.e(3) * obj.x(3);
+            obj.torque = sum_of_e_times_i / obj.x(4);
             
             ret_obj = obj;
         end
