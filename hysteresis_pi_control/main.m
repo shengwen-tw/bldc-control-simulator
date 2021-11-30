@@ -40,8 +40,8 @@ w_d = zeros(1, ITERATION_TIMES); %desited motor speed
 T_d = zeros(1, ITERATION_TIMES); %desired torque
 T_d_last = 0; %desired torque of last time interval
 e_w_last = 0; %speed error of last time interval
-Kp = 0.25;    %P gain
-Ki = 0.0025;  %I gain
+Kp = 0.15;    %P gain
+Ki = 0.001;  %I gain
 
 %ysteresis control parameters
 delta_i = 0.001;                   %hysteresis band
@@ -83,6 +83,16 @@ for i = 1: ITERATION_TIMES
     %fixed speed target
     if 0
         w_d(i) = 5;
+    end
+    
+    %step impulse
+    if 0
+        time = i * dt;
+        if time < (ITERATION_TIMES * dt / 2)
+            w_d(i) = 0;
+        else
+            w_d(i) = 50;
+        end
     end
     
     %linear speed trajectory planning
