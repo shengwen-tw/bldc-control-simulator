@@ -252,5 +252,20 @@ classdef bldc_dynamics
             
             dqz = T_p * alpha_beta_gamma;
         end
+        
+        function alpha_beta_gamma = inv_park_transform(obj, dqz, theta)
+            T_p_inv(1, 1) = cos(theta);
+            T_p_inv(1, 2) = -sin(theta);
+            T_p_inv(1, 3) = 0;
+            T_p_inv(2, 1) = sin(theta);
+            T_p_inv(2, 2) = cos(theta);
+            T_p_inv(2, 3) = 0;
+            T_p_inv(3, 1) = 0;
+            T_p_inv(3, 2) = 0;
+            T_p_inv(3, 3) = 1;
+            
+            dqz(3) = 0;
+            alpha_beta_gamma = T_p_inv * dqz;
+        end
     end
 end
