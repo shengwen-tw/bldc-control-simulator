@@ -8,7 +8,7 @@ carrier = zeros(1, ITERATION_TIMES);
 carrier_freq = 10;
 carrier_cnt = 0;
 amplitude = 1;
-carrier_inc = amplitude / (1/dt) * 2 * carrier_freq
+carrier_inc = amplitude / (1/dt) * 2 * carrier_freq;
 sign = 1;
 
 %time sequence
