@@ -1,7 +1,7 @@
 close all;
 
 dt = 0.001;
-ITERATION_TIMES = 10000;
+ITERATION_TIMES = 100000;
 
 %triangle carrier wave
 carrier = zeros(1, ITERATION_TIMES);
