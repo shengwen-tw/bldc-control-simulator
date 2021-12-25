@@ -1,7 +1,10 @@
 close all;
 
+%simulation run time
 dt = 0.001;
-ITERATION_TIMES = 10000;
+simulation_time = 10;
+
+ITERATION_TIMES = simulation_time / dt;
 
 bldc = bldc_dynamics;
 bldc = bldc.init(dt);
@@ -290,9 +293,7 @@ for i = 1: ITERATION_TIMES
         S5 = 0;
         S6 = 0;
     end
-    
-    bldc = bldc.set_mosfet_gate(S1, S2, S3, S4, S5, S6);
-       
+          
     %currents of motor phases
     v_a(i) = bldc.u(1);
     v_b(i) = bldc.u(2);

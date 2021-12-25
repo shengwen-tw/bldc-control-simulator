@@ -35,13 +35,7 @@ classdef bldc_dynamics
         
         torque = 0;        %torque of the motor
         
-        %MOSFET signals
-        S1 = 0;
-        S2 = 0;
-        S3 = 0;
-        S4 = 0;
-        S5 = 0;
-        S6 = 0;
+        PWM_freq = 100     %frequency of the PWM for bldc control
         
         %BLDC control voltage
         v_bldc = 100;
@@ -84,56 +78,7 @@ classdef bldc_dynamics
                      bitshift(S2, 1) + ...
                      bitshift(S1, 0);
         end
-        
-        function ret_obj = set_mosfet_gate(obj, S1, S2, S3, S4, S5, S6)
-            obj.S1 = S1;
-            obj.S2 = S2;
-            obj.S3 = S3;
-            obj.S4 = S4;
-            obj.S5 = S5;
-            obj.S6 = S6;
-            
-            %signal = obj.synthesis_gate_signal(S1, S2, S3, S4, S5, S6);
-            %disp(signal);
-            
-            ret_obj = obj;
-        end
-        
-        function ret_obj = gate_signal_to_control_voltage(obj)
-            signal = obj.synthesis_gate_signal(obj.S1, obj.S2, obj.S3, obj.S4, obj.S5, obj.S6);
-            
-            switch signal
-                case 9 %i_a(+), i_b(-)
-                    obj.u(1) = +obj.v_bldc;
-                    obj.u(2) = -obj.v_bldc;
-                    obj.u(3) = 0;
-                case 33 %i_a(+), i_c(-)
-                    obj.u(1) = +obj.v_bldc;
-                    obj.u(2) = 0;
-                    obj.u(3) = -obj.v_bldc;
-                case 36 %i_b(+), i_c(-)
-                    obj.u(1) = 0;
-                    obj.u(2) = +obj.v_bldc;
-                    obj.u(3) = -obj.v_bldc;
-                case 6 %i_b(+), i_a(-)
-                    obj.u(1) = -obj.v_bldc;
-                    obj.u(2) = +obj.v_bldc;
-                    obj.u(3) = 0;
-                case 18 %i_c(+), i_a(-)
-                    obj.u(1) = -obj.v_bldc;
-                    obj.u(2) = 0;
-                    obj.u(3) = +obj.v_bldc;
-                case 24 %i_c(+), i_b(-)
-                    obj.u(1) = 0;
-                    obj.u(2) = -obj.v_bldc;
-                    obj.u(3) = +obj.v_bldc;
-                otherwise
-                    warning('unexpected gate signal combination.');
-            end
-            
-            ret_obj = obj;
-        end
-        
+               
         function ret_obj = update_dynamics(obj)                        
             %A matrix is time variant, update the entry corresponding to
             %the back EMF
@@ -158,9 +103,6 @@ classdef bldc_dynamics
         end
         
         function ret_obj = update(obj)
-            %convert MOSFET control signals to voltage
-            %obj = obj.gate_signal_to_control_voltage();
-            
             %update the back EMF according to the motor angle
             obj.f_a = obj.back_emf_fa(obj.x(5));
             obj.f_b = obj.back_emf_fb(obj.x(5));
@@ -185,30 +127,95 @@ classdef bldc_dynamics
         end
         
         function retval = back_emf_fa(obj, theta_r)
-            %restrict theta_r in [0, 2*pi]
-            theta_r = mod(theta_r, 2*pi);
-            
             retval = sin(theta_r);
         end
         
         function retval = back_emf_fb(obj, theta_r)
-            %phase shifting
-            theta_r = theta_r - deg2rad(120);
-            
-            %restrict theta_r in [0, 2*pi]
-            theta_r = mod(theta_r, 2*pi);
-            
-            retval = back_emf_fa(obj, theta_r);
+            retval = sin(theta_r - deg2rad(120));
         end
         
         function retval = back_emf_fc(obj, theta_r)
-            %phase shifting
-            theta_r = theta_r - deg2rad(240);
+            retval = sin(theta_r - deg2rad(240));
+        end
+        
+        function V_abc = space_vector_to_three_phase_voltage(obj, x)
+            V = obj.v_bldc;
             
-            %restrict theta_r in [0, 2*pi]
-            theta_r = mod(theta_r, 2*pi);
+            %Ux = (Sa, Sb, Sc)
+            switch(x)
+                case 0 %U0 = (0, 0, 0)
+                    V_abc = [0; 0; 0];
+                case 1 %U1 = (0, 0, 1)
+                    V_abc = [+2/3*V; -1/3*V; -1/3*V];
+                case 2 %U2 = (0, 1, 0)
+                    V_abc = [-1/3*V; +2/3*V; -1/3*V];
+                case 3 %U3 = (0, 1, 1)
+                    V_abc = [+1/3*V; +1/3*V; -2/3*V];
+                case 4 %U4 = (1, 0, 0)
+                    V_abc = [-1/3*V; -1/3*V; +2/3*V];
+                case 5 %U5 = (1, 0, 1)
+                    V_abc = [+1/3*V; -2/3*V; +1/3*V];
+                case 6 %U6 = (1, 1, 0)
+                    V_abc = [-2/3*V; +1/3*V; +1/3*V];
+                case 7 %U7 = (1, 1, 1)
+                    V_abc = [0; 0; 0];
+                otherwise
+                    V_abc = [0; 0; 0];
+                    warning('undefined space vector.');
+            end
+        end
+        
+        function periods = calculate_SVPWM_period(obj, theta)
+            theta_deg = rad2deg(theta);
             
-            retval = back_emf_fa(obj, theta_r);
+            %pwm period, -1 means currently not used
+            T0 = -1;
+            T1 = -1;
+            T2 = -1;
+            T3 = -1;
+            T4 = -1;
+            T5 = -1;
+            T6 = -1;
+            T7 = -1;
+            T_off = 0;
+            
+            m = sqrt(3); %modulation index
+            T = 1 / obj.PWM_freq;  %pwm frequency
+            
+            %calculate the section number from the rotation angle
+            if(theta_deg >= 0 && theta_deg < 60)
+                T4 = m * T * sin(pi/3 - theta);
+                T6 = m * T * sin(theta);
+                T_off = 1/2*(T - T4 - T6);
+            elseif(theta_deg >= 60 && theta_deg < 120)
+                T2 = m * T;
+                T6 = m * T;
+                T_off = 1/2*(T - T2 - T6);
+            elseif(theta_deg >= 120 && theta_deg < 180)
+                T2 = m * T;
+                T3 = m * T;
+                T_off = 1/2*(T - T2 - T3);
+            elseif(theta_deg >= 180 && theta_deg < 240)
+                T1 = m * T;
+                T3 = m * T;
+                T_off = 1/2*(T - T4 - T6);
+            elseif(theta_deg >= 240 && theta_deg < 300)
+                T1 = m * T;
+                T5 = m * T;
+                T_off = 1/2*(T - T4 - T6);
+            elseif(theta_deg >= 300 && theta_deg < 360)
+                T4 = m * T;
+                T5 = m * T;
+                T_off = 1/2*(T - T4 - T6);
+            end
+            
+            T0 = T_off;
+            T7 = T_off;
+            periods = [T0; T1; T2; T3; T4; T5; T6; T7];
+        end
+        
+        function generate_SVPWM_signal(obj)
+            %output the three phase voltage according to the segment number
         end
         
         function alpha_beta_gemma = clarke_transform(obj, abc)
