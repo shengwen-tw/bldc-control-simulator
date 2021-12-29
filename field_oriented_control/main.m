@@ -5,13 +5,13 @@ close all;
 %=======================%
 
 %simulation run time
-dt = 0.001;           %[s]
 simulation_time = 10; %[s]
-ITERATION_TIMES = simulation_time / dt;
 
 bldc_pwm_freq = 1000; %[hz]
 bldc = bldc_dynamics;
 bldc = bldc.init(bldc_pwm_freq);
+
+ITERATION_TIMES = bldc_pwm_freq * simulation_time;
 
 %============%
 % Plot datas %
@@ -56,27 +56,35 @@ i_a_d = zeros(1, ITERATION_TIMES); %desired i_a current
 i_b_d = zeros(1, ITERATION_TIMES); %desired i_b current
 i_c_d = zeros(1, ITERATION_TIMES); %desired i_c current
 
-%rotor position sensing
-phase_a = zeros(1, ITERATION_TIMES);
-phase_b = zeros(1, ITERATION_TIMES);
-phase_c = zeros(1, ITERATION_TIMES);
-theta_sense = zeros(1, ITERATION_TIMES);
-
 %motor torque
 torque = zeros(1, ITERATION_TIMES);
+
+%clarke transformion
+V_alpha = zeros(1, ITERATION_TIMES);
+V_beta = zeros(1, ITERATION_TIMES);
+V_gamma = zeros(1, ITERATION_TIMES);
 
 %======================%
 % Simulation main loop %
 %======================%
 
 SVPWM_state = 1;
-bldc.T_SVPWM = 1/7 * [dt; dt; dt; dt; dt; dt; dt];
+Uref = 2/3 * 90;
+angle = 0;
 
-for i = 1: ITERATION_TIMES   
+for i = 1: ITERATION_TIMES    
+    %apply clarke transformation
+    V_alpha_beta_gamma = bldc.clarke_transform(bldc.e);
+    
     %main loop has 7 procedures to handle 7-segment SVPWM
     switch(SVPWM_state)
         case 1
+            %generate test signal of Uref
+            angle = angle + deg2rad(1);
+            angle = mod(angle, 2*pi);
+            
             %execute field-oriented control algorithm
+            bldc = bldc.generate_SVPWM_signal(Uref, angle);
             
             bldc.u(1:3) = bldc.u_SVPWM(1, 1:3).';
             dt = bldc.T_SVPWM(1);
@@ -100,6 +108,7 @@ for i = 1: ITERATION_TIMES
             dt = bldc.T_SVPWM(7);
     end
     
+    %disp(bldc.T_SVPWM);
     SVPWM_state = SVPWM_state + 1;
     
     if(SVPWM_state > 7)
@@ -114,7 +123,9 @@ for i = 1: ITERATION_TIMES
     %============%
     
     %time sequence
-    time_arr(i) = (i - 1) * dt;
+    if(i > 1)
+        time_arr(i) = time_arr(i - 1) + dt;
+    end
     
     %state variables
     i_a(i) = bldc.x(1); %current of phase A
@@ -140,6 +151,11 @@ for i = 1: ITERATION_TIMES
     
     %motor torque
     torque(i) = bldc.torque;
+    
+    %clarke transformation
+    V_alpha(i) = V_alpha_beta_gamma(1);
+    V_beta(i) = V_alpha_beta_gamma(2);
+    V_gamma(i) = V_alpha_beta_gamma(3);
    end
 
 figure('Name', 'Desired current');
@@ -203,8 +219,8 @@ xlabel('time [s]');
 ylabel('\omega_m [RPM]');
 
 figure('Name', 'Motor position');
-plot(time_arr(:), rad2deg(theta_r(:)), time_arr(:), theta_sense(:));
-legend('Actual position', 'Estimated position');
+plot(time_arr(:), rad2deg(theta_r(:)));
+legend('Actual position');
 xlim([0 time_arr(end)]);
 ylim([-20 380]);
 xlabel('time [s]');
@@ -252,27 +268,6 @@ ylim([-1.3 1.3]);
 xlabel('time [s]');
 ylabel('f_c');
 
-%3-phase normalized back EMF
-figure('Name', 'Normalized back EMF');
-subplot (3, 1, 1);
-plot(time_arr(:), phase_a(:));
-xlim([0 time_arr(end)]);
-ylim([-0.2 1.3]);
-xlabel('time [s]');
-ylabel('Phase A');
-subplot (3, 1, 2);
-plot(time_arr(:), phase_b(:));
-xlim([0 time_arr(end)]);
-ylim([-0.2 1.3]);
-xlabel('time [s]');
-ylabel('Phase B');
-subplot (3, 1, 3);
-plot(time_arr(:), phase_c(:));
-xlim([0 time_arr(end)]);
-ylim([-0.2 1.3]);
-xlabel('time [s]');
-ylabel('Phase C');
-
 figure('Name', 'Motor torque');
 plot(time_arr(:), torque(:), time_arr(:), T_d);
 legend('Actual torque', 'Desired torque');
@@ -280,3 +275,24 @@ xlim([0 time_arr(end)]);
 ylim([-0.2, 0.5]);
 xlabel('time [s]');
 ylabel('\tau [Nm]');
+
+%clarke transformation
+figure('Name', 'Clarke Transformation');
+subplot (3, 1, 1);
+plot(time_arr(:), V_alpha(:));
+xlim([0 time_arr(end)]);
+ylim([-1.3 1.3]);
+xlabel('theta_r');
+ylabel('V_{\alpha}');
+subplot (3, 1, 2);
+plot(time_arr(:), V_beta(:));
+xlim([0 time_arr(end)]);
+ylim([-1.3 1.3]);
+xlabel('theta_r');
+ylabel('V_{\beta}');
+subplot (3, 1, 3);
+plot(time_arr(:), V_gamma(:));
+xlim([0 time_arr(end)]);
+ylim([-1.3 1.3]);
+xlabel('theta_r');
+ylabel('V_{\gamma}');
