@@ -5,13 +5,13 @@ close all;
 %=======================%
 
 %simulation run time
-dt = 0.001; %[s]
+dt = 0.001;           %[s]
 simulation_time = 10; %[s]
-
 ITERATION_TIMES = simulation_time / dt;
 
+bldc_pwm_freq = 1000; %[hz]
 bldc = bldc_dynamics;
-bldc = bldc.init(dt);
+bldc = bldc.init(bldc_pwm_freq);
 
 %============%
 % Plot datas %
