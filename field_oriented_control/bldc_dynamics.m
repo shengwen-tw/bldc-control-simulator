@@ -1,7 +1,5 @@
 classdef bldc_dynamics
-    properties
-        dt;               %time period of one iteration
-        
+    properties       
         R = 0.7;          %resistance [ohm]
         L = 2.72;         %self-inductance [mH]
         M = 1.5;          %mutual-inductance [mH]
@@ -39,56 +37,46 @@ classdef bldc_dynamics
         
         %BLDC control voltage
         v_bldc = 100;
+        
+        u_SVPWM = zeros(7, 3); %3 phase control voltage of the 7-segement SVPWM
+        T_SVPWM = zeros(7, 1); %time period of the 7-segment SVPWM
     end
     
     methods
         function ret_obj = init(obj, dt)
-            obj.dt = dt;
-            
+            %J
             obj.J = obj.Jm + obj.Jl;
             
+            %A
             obj.A(1, 1) = -obj.R/(obj.L-obj.M);
             obj.A(2, 2) = -obj.R/(obj.L-obj.M);
             obj.A(3, 3) = -obj.R/(obj.L-obj.M);
-            %
-            %A(4, 1) = lambda_div_J * obj.f_a; %change dynamically
-            %A(4, 2) = lambda_div_J * obj.f_b; %change dynamically
-            %A(4, 3) = lambda_div_J * obj.f_c; %change dynamically
             obj.A(4, 4) = -obj.B_vis/obj.J;
-            %
             obj.A(5, 4) = obj.P/2;
             
+            %B
             obj.B(1, 1) = 1/(obj.L-obj.M);
             obj.B(2, 2) = 1/(obj.L-obj.M);
             obj.B(3, 3) = 1/(obj.L-obj.M);
             obj.B(4, 4) = 1;
              
+            %C
             obj.C(1, 1) = -1/(obj.L-obj.M);
             obj.C(2, 2) = -1/(obj.L-obj.M);
             obj.C(3, 3) = -1/(obj.L-obj.M);
             
             ret_obj = obj;
         end
-             
-        function signal = synthesis_gate_signal(obj, S1, S2, S3, S4, S5, S6)
-            signal = bitshift(S6, 5) + ...
-                     bitshift(S5, 4) + ...
-                     bitshift(S4, 3) + ...
-                     bitshift(S3, 2) + ...
-                     bitshift(S2, 1) + ...
-                     bitshift(S1, 0);
-        end
-               
-        function ret_obj = update_dynamics(obj)                        
-            %A matrix is time variant, update the entry corresponding to
-            %the back EMF
+                            
+        function ret_obj = new_dynamics(obj)                        
+            %update the time-variant entry of the matrix A
             lambda_div_J = obj.lambda_m / obj.J;
             obj.A(4, 1) = lambda_div_J * obj.f_a;
             obj.A(4, 2) = lambda_div_J * obj.f_b;
             obj.A(4, 3) = lambda_div_J * obj.f_c;
            
             %x_dot = Ax + Bu + Ce
-            obj.x_dot = obj.A*obj.x + obj.B*obj.u + obj.C*obj.e;
+            obj.x_dot = (obj.A*obj.x) + (obj.B*obj.u) + (obj.C*obj.e);
             
             ret_obj = obj;
         end
@@ -102,7 +90,7 @@ classdef bldc_dynamics
                       f_now(5) + (f_dot(5) * dt)];
         end
         
-        function ret_obj = update(obj)
+        function ret_obj = update(obj, dt)
             %update the back EMF according to the motor angle
             obj.f_a = obj.back_emf_fa(obj.x(5));
             obj.f_b = obj.back_emf_fb(obj.x(5));
@@ -113,14 +101,14 @@ classdef bldc_dynamics
             obj.e(2) = omega_times_lambda * obj.f_b;
             obj.e(3) = omega_times_lambda * obj.f_c;
             
-            obj = obj.update_dynamics();
-            obj.x = obj.integrator(obj.x, obj.x_dot, obj.dt);
+            obj = obj.new_dynamics();
+            obj.x = obj.integrator(obj.x, obj.x_dot, dt);
                         
-            %restrict motor position in +-pi
+            %restrict rotor position in +-pi
             obj.x(5) = mod(obj.x(5), 2*pi);
             
-            %update torque of the motor
-            sum_of_e_times_i = obj.e(1) * obj.x(1) +  obj.e(2) * obj.x(2) + obj.e(3) * obj.x(3);
+            %calculate the motor torque
+            sum_of_e_times_i = obj.e(1)*obj.x(1) +  obj.e(2)*obj.x(2) + obj.e(3)*obj.x(3);
             obj.torque = sum_of_e_times_i / obj.x(4);
             
             ret_obj = obj;
@@ -219,39 +207,46 @@ classdef bldc_dynamics
         end
         
         function alpha_beta_gemma = clarke_transform(obj, abc)
+            sqrt3_div_2 = sqrt(3)/2;
+            
             T_c(1, 1) = 1;
-            T_c(1, 2) = -1/2;
-            T_c(1, 3) = -1/2;
+            T_c(1, 2) = -0.5;
+            T_c(1, 3) = -0.5;
             T_c(2, 1) = 0;
-            T_c(2, 2) = sqrt(3)/2;
-            T_c(2, 3) = -sqrt(3)/2;
-            T_c(3, 1) = 1/2;
-            T_c(3, 2) = 1/2;
-            T_c(3, 3) = 1/2;
+            T_c(2, 2) = sqrt3_div_2;
+            T_c(2, 3) = -sqrt3_div_2;
+            T_c(3, 1) = 0.5;
+            T_c(3, 2) = 0.5;
+            T_c(3, 3) = 0.5;
             
             alpha_beta_gemma = (2/3) * T_c * abc;
         end
         
         function abc = inv_clarke_transform(obj, alpha_beta_gemma)
+            sqrt3_div_2 = sqrt(3)/2;
+            
             T_c_inv(1, 1) = 1;
             T_c_inv(1, 2) = 0;
             T_c_inv(1, 3) = 1;
-            T_c_inv(2, 1) = -1/2;
-            T_c_inv(2, 2) = sqrt(3)/2;
+            T_c_inv(2, 1) = -0.5;
+            T_c_inv(2, 2) = sqrt3_div_2;
             T_c_inv(2, 3) = 1;
-            T_c_inv(3, 1) = -1/2;
-            T_c_inv(3, 2) = -sqrt(3)/2;
+            T_c_inv(3, 1) = -0.5;
+            T_c_inv(3, 2) = -sqrt3_div_2;
             T_c_inv(3, 3) = 1;
             
             abc = T_c_inv * alpha_beta_gemma;
         end
         
         function dqz = park_transform(obj, alpha_beta_gamma, theta)
-            T_p(1, 1) = cos(theta);
-            T_p(1, 2) = sin(theta);
+            cos_theta = cos(theta);
+            sin_theta = sin(theta);
+            
+            T_p(1, 1) = cos_theta;
+            T_p(1, 2) = sin_theta;
             T_p(1, 3) = 0;
-            T_p(2, 1) = -sin(theta);
-            T_p(2, 2) = cos(theta);
+            T_p(2, 1) = -sin_theta;
+            T_p(2, 2) = cos_theta;
             T_p(2, 3) = 0;
             T_p(3, 1) = 0;
             T_p(3, 2) = 0;
@@ -261,11 +256,14 @@ classdef bldc_dynamics
         end
         
         function alpha_beta_gamma = inv_park_transform(obj, dqz, theta)
-            T_p_inv(1, 1) = cos(theta);
-            T_p_inv(1, 2) = -sin(theta);
+            cos_theta = cos(theta);
+            sin_theta = sin(theta);
+            
+            T_p_inv(1, 1) = cos_theta;
+            T_p_inv(1, 2) = -sin_theta;
             T_p_inv(1, 3) = 0;
-            T_p_inv(2, 1) = sin(theta);
-            T_p_inv(2, 2) = cos(theta);
+            T_p_inv(2, 1) = sin_theta;
+            T_p_inv(2, 2) = cos_theta;
             T_p_inv(2, 3) = 0;
             T_p_inv(3, 1) = 0;
             T_p_inv(3, 2) = 0;

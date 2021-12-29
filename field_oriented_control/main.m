@@ -1,13 +1,21 @@
 close all;
 
+%=======================%
+% Simulation parameters %
+%=======================%
+
 %simulation run time
-dt = 0.001;
-simulation_time = 10;
+dt = 0.001; %[s]
+simulation_time = 10; %[s]
 
 ITERATION_TIMES = simulation_time / dt;
 
 bldc = bldc_dynamics;
 bldc = bldc.init(dt);
+
+%============%
+% Plot datas %
+%============%
 
 %3-phase currents
 i_a = zeros(1, ITERATION_TIMES);
@@ -41,25 +49,12 @@ time_arr = zeros(1, ITERATION_TIMES);
 %PI speed control
 w_d = zeros(1, ITERATION_TIMES); %desited motor speed
 T_d = zeros(1, ITERATION_TIMES); %desired torque
-T_d_last = 0; %desired torque of last time interval
-e_w_last = 0; %speed error of last time interval
-Kp = 0.15;    %P gain
-Ki = 0.001;  %I gain
 
 %ysteresis control parameters
-delta_i = 0.001;                   %hysteresis band
 i_d = zeros(1, ITERATION_TIMES);   %desited current
 i_a_d = zeros(1, ITERATION_TIMES); %desired i_a current
 i_b_d = zeros(1, ITERATION_TIMES); %desired i_b current
 i_c_d = zeros(1, ITERATION_TIMES); %desired i_c current
-
-%MOSFET signal
-S1 = 0;
-S2 = 0;
-S3 = 0;
-S4 = 0;
-S5 = 0;
-S6 = 0;
 
 %rotor position sensing
 phase_a = zeros(1, ITERATION_TIMES);
@@ -69,245 +64,69 @@ theta_sense = zeros(1, ITERATION_TIMES);
 
 %motor torque
 torque = zeros(1, ITERATION_TIMES);
-w_m_last = 0;
 
-for i = 1: ITERATION_TIMES
-    bldc = bldc.update();
+%======================%
+% Simulation main loop %
+%======================%
 
-    bldc.u(4) = 0; %no external torque
-       
-    %===========================%
-    % Speed trajectory planning %
-    %===========================%
-    %for debugging:
-    %i_d(i) = i * dt * 0.25;
-    %i_d(i) = 1 * sin(2 * i * dt);
-    
-    %fixed speed target
-    if 0
-        w_d(i) = 5;
-    end
-    
-    %step impulse
-    if 0
-        time = i * dt;
-        if time < (ITERATION_TIMES * dt / 2)
-            w_d(i) = 0;
-        else
-            w_d(i) = 50;
-        end
-    end
-    
-    %linear speed trajectory planning
-    if 0
-        traj_slope = 10;
-        traj_x = i * dt;
-        w_d(i) = traj_slope * traj_x; %[RPM]
-    end
-    
-    %nonlinear speed trajectory planning
-    if 1
-        traj_coeff = 150;
-        traj_speed = 5;
-        w_d(i) = traj_coeff * abs(sin(traj_speed * i * dt));
-    end
-    
-    %convert the speed unit from [RPM] to [rad/s]
-    w_d(i) = w_d(i) * 0.10472;
-    
-    %=====================================================%
-    % Rotor position sensing with back-EMF sensing method %
-    %=====================================================%
-    
-    %phase a
-    if bldc.e(1) >= 0
-        phase_a(i) = 1;
-    else
-        phase_a(i) = 0;
-    end
-    
-    %phase b
-    if bldc.e(2) >= 0
-        phase_b(i) = 1;
-    else
-        phase_b(i) = 0;
-    end
-    
-    %phase c
-    if bldc.e(3) >= 0
-        phase_c(i) = 1;
-    else
-        phase_c(i) = 0;
-    end
-    
-    %decode the phase signal
-    if isequal([phase_a(i) phase_b(i) phase_c(i)], [1 0 1])
-        theta_sense(i) = 0;
-    elseif isequal([phase_a(i) phase_b(i) phase_c(i)], [1 0 0])
-        theta_sense(i) = 60;
-    elseif isequal([phase_a(i) phase_b(i) phase_c(i)], [1 1 0])
-        theta_sense(i) = 120;
-    elseif isequal([phase_a(i) phase_b(i) phase_c(i)], [0 1 0])
-        theta_sense(i) = 180;
-    elseif isequal([phase_a(i) phase_b(i) phase_c(i)], [0 1 1])
-        theta_sense(i) = 240;
-    elseif isequal([phase_a(i) phase_b(i) phase_c(i)], [0 0 1])
-        theta_sense(i) = 300;
-    end
-    
-    %==================%
-    % PI speed control %
-    %==================%
-    %Incremental PI control
-    e_w = w_d(i) - bldc.x(4);
-    T_d(i) = T_d_last + (Kp * (e_w - e_w_last)) + (Ki * e_w);
-    e_w_last = e_w;
-    T_d_last = T_d(i);
-    i_d(i) = T_d(i) / bldc.Kt;
-           
-    %=============================%
-    % 6-steps phase control logic %
-    %=============================%
-    if(bldc.x(5) >= deg2rad(0) && bldc.x(5) < deg2rad(60))
-        %disp('motor position between 0-60 degree')
-        %disp([phase_a(i) phase_b(i) phase_c(i)])
-        i_a_d(i) = +i_d(i);
-        i_b_d(i) = -i_d(i);
-        i_c_d(i) = 0;
-    elseif(bldc.x(5) >= deg2rad(60) && bldc.x(5) < deg2rad(120))
-        %disp('motor position between 60-120 degree')
-        %disp([phase_a(i) phase_b(i) phase_c(i)])
-        i_a_d(i) = +i_d(i);
-        i_b_d(i) = 0;
-        i_c_d(i) = -i_d(i);
-    elseif(bldc.x(5) >= deg2rad(120) && bldc.x(5) < deg2rad(180))
-        %disp('motor position between 120-180 degree')
-        %disp([phase_a(i) phase_b(i) phase_c(i)])
-        i_a_d(i) = 0;
-        i_b_d(i) = +i_d(i);
-        i_c_d(i) = -i_d(i);
-    elseif(bldc.x(5) >= deg2rad(180) && bldc.x(5) < deg2rad(240))
-        %disp('motor position between 180-240 degree')
-        %disp([phase_a(i) phase_b(i) phase_c(i)])
-        i_a_d(i) = -i_d(i);
-        i_b_d(i) = +i_d(i);
-        i_c_d(i) = 0;
-    elseif(bldc.x(5) >= deg2rad(240) && bldc.x(5) < deg2rad(300))
-        %disp('motor position between 240-300 degree')
-        %disp([phase_a(i) phase_b(i) phase_c(i)])
-        i_a_d(i) = -i_d(i);
-        i_b_d(i) = 0;
-        i_c_d(i) = +i_d(i);
-    elseif(bldc.x(5) >= deg2rad(300) && bldc.x(5) < deg2rad(360))
-        %disp('300-360')
-        %disp([phase_a(i) phase_b(i) phase_c(i)])
-        i_a_d(i) = 0;
-        i_b_d(i) = -i_d(i);
-        i_c_d(i) = +i_d(i);
-    end
+SVPWM_state = 1;
+bldc.T_SVPWM = 1/7 * [dt; dt; dt; dt; dt; dt; dt];
 
-    %============================%
-    % hysteresis current control %
-    %============================%
-       
-    %phase a control
-    if i_a_d >= 0
-        if bldc.x(1) <= (i_a_d(i) - delta_i)
-            S1 = 1;
-            S2 = 0;
-            bldc.u(1) = bldc.v_bldc / 2;
-        elseif bldc.x(1) >= (i_a_d(i) + delta_i)
-            S1 = 0;
-            S2 = 1;
-            bldc.u(1) = -bldc.v_bldc / 2;
-        end
-    else
-        if bldc.x(1) >= (i_a_d(i) + delta_i)
-            S1 = 0;
-            S2 = 1;
-            bldc.u(1) = -bldc.v_bldc / 2;
-        elseif bldc.x(1) <= (i_a_d(i) - delta_i)
-            S1 = 1;
-            S2 = 0;
-            bldc.u(1) = bldc.v_bldc / 2;
-        end
+for i = 1: ITERATION_TIMES   
+    %main loop has 7 procedures to handle 7-segment SVPWM
+    switch(SVPWM_state)
+        case 1
+            %execute field-oriented control algorithm
+            
+            bldc.u(1:3) = bldc.u_SVPWM(1, 1:3).';
+            dt = bldc.T_SVPWM(1);
+        case 2
+            bldc.u(1:3) = bldc.u_SVPWM(2, 1:3).';
+            dt = bldc.T_SVPWM(2);
+        case 3
+            bldc.u(1:3) = bldc.u_SVPWM(3, 1:3).';
+            dt = bldc.T_SVPWM(3);
+        case 4
+            bldc.u(1:3) = bldc.u_SVPWM(4, 1:3).';
+            dt = bldc.T_SVPWM(4);
+        case 5
+            bldc.u(1:3) = bldc.u_SVPWM(5, 1:3).';
+            dt = bldc.T_SVPWM(5);
+        case 6
+            bldc.u(1:3) = bldc.u_SVPWM(6, 1:3).';
+            dt = bldc.T_SVPWM(6);
+        case 7
+            bldc.u(1:3) = bldc.u_SVPWM(7, 1:3).';
+            dt = bldc.T_SVPWM(7);
     end
     
-    %phase b control
-    if i_b_d >= 0
-        if bldc.x(2) <= (i_b_d(i) - delta_i)
-            S3 = 1;
-            S4 = 0;
-            bldc.u(2) = bldc.v_bldc / 2;
-        elseif bldc.x(2) >= (i_b_d(i) + delta_i)
-            S3 = 0;
-            S4 = 1;
-            bldc.u(2) = -bldc.v_bldc / 2;
-        end
-    else
-        if bldc.x(2) >= (i_b_d(i) + delta_i)
-            S3 = 0;
-            S4 = 1;
-            bldc.u(2) = -bldc.v_bldc / 2;
-        elseif bldc.x(2) <= (i_b_d(i) - delta_i)
-            S3 = 1;
-            S4 = 0;
-            bldc.u(2) = bldc.v_bldc / 2;
-        end
-    end
- 
-    %phase c control
-    if i_c_d >= 0
-        if bldc.x(3) <= (i_c_d(i) - delta_i)
-            S5 = 1;
-            S6 = 0;
-            bldc.u(3) = bldc.v_bldc / 2;
-        elseif bldc.x(3) >= (i_c_d(i) + delta_i)
-            S5 = 0;
-            S6 = 1;
-            bldc.u(3) = -bldc.v_bldc / 2;
-        end
-    else
-        if bldc.x(3) >= (i_c_d(i) + delta_i)
-            S5 = 0;
-            S6 = 1;
-            bldc.u(3) = -bldc.v_bldc / 2;
-        elseif bldc.x(3) <= (i_c_d(i) - delta_i)
-            S5 = 1;
-            S6 = 0;
-            bldc.u(3) = bldc.v_bldc / 2;
-        end
+    SVPWM_state = SVPWM_state + 1;
+    
+    if(SVPWM_state > 7)
+        SVPWM_state = 1;
     end
     
-    if(abs(i_a_d(i)) < 0.001)
-        S1 = 0;
-        S2 = 0;
-    end
+    %update the BLDC dynamics
+    bldc = bldc.update(dt);
+        
+    %============%
+    % Plot datas %
+    %============%
     
-    if(abs(i_b_d(i)) < 0.001)
-        S3 = 0;
-        S4 = 0;
-    end
+    %time sequence
+    time_arr(i) = (i - 1) * dt;
     
-    if(abs(i_c_d(i)) < 0.001)
-        S5 = 0;
-        S6 = 0;
-    end
-          
-    %currents of motor phases
-    v_a(i) = bldc.u(1);
-    v_b(i) = bldc.u(2);
-    v_c(i) = bldc.u(3);
+    %state variables
+    i_a(i) = bldc.x(1); %current of phase A
+    i_b(i) = bldc.x(2); %current of phase B
+    i_c(i) = bldc.x(3); %current of phase C
+    omega_m(i) = bldc.x(4); %motor speed
+    theta_r(i) = bldc.x(5); %rotor position
     
-    %currents of motor phases
-    i_a(i) = bldc.x(1);
-    i_b(i) = bldc.x(2);
-    i_c(i) = bldc.x(3);
-
-    %motor speed
-    omega_m(i) = bldc.x(4);
-    %motor position
-    theta_r(i) = bldc.x(5);
+    %control variables
+    v_a(i) = bldc.u(1); %voltage of phase A
+    v_b(i) = bldc.u(2); %voltage of phase B
+    v_c(i) = bldc.u(3); %voltage of phase C
     
     %back EMF
     e_a(i) = bldc.e(1);
@@ -321,10 +140,7 @@ for i = 1: ITERATION_TIMES
     
     %motor torque
     torque(i) = bldc.torque;
-    
-    %time sequence
-    time_arr(i) = (i - 1) * dt;
-end
+   end
 
 figure('Name', 'Desired current');
 plot(time_arr(:), i_d(:));
