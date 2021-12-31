@@ -7,7 +7,7 @@ close all;
 %simulation run time
 simulation_time = 10; %[s]
 
-bldc_pwm_freq = 1000; %[hz]
+bldc_pwm_freq = 10; %[hz]
 bldc = bldc_dynamics;
 bldc = bldc.init(bldc_pwm_freq);
 
@@ -69,7 +69,7 @@ V_gamma = zeros(1, ITERATION_TIMES);
 %======================%
 
 SVPWM_state = 1;
-Uref = 2/3 * 90;
+Uref = 2/3 * 50;
 angle = 0;
 
 for i = 1: ITERATION_TIMES    
@@ -80,7 +80,7 @@ for i = 1: ITERATION_TIMES
     switch(SVPWM_state)
         case 1
             %generate test signal of Uref
-            angle = angle + deg2rad(1);
+            angle = angle + deg2rad(0);
             angle = mod(angle, 2*pi);
             
             %execute field-oriented control algorithm

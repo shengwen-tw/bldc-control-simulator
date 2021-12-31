@@ -130,34 +130,34 @@ classdef bldc_dynamics
         end
         
         function V_abc = space_vector_to_phase_voltage(obj, x)
-            V = obj.v_bldc;
+            Vdc = obj.v_bldc;
             
-            %Ux = (Sa, Sb, Sc)
+            %Vx = (Sa, Sb, Sc)
             switch(x)
-                case 0 %U0 = (0, 0, 0)
+                case 0 %V0 = (0, 0, 0)
                     V_abc = [0 0 0];
                     %disp('U0');
-                case 1 %U1 = (0, 0, 1)
-                    V_abc = [+2/3*V -1/3*V -1/3*V];
-                    %disp('U1');
-                case 2 %U2 = (0, 1, 0)
-                    V_abc = [-1/3*V +2/3*V -1/3*V];
-                    %disp('U2');
-                case 3 %U3 = (0, 1, 1)
-                    V_abc = [+1/3*V +1/3*V -2/3*V];
-                    %disp('U3');
-                case 4 %U4 = (1, 0, 0)
-                    V_abc = [-1/3*V -1/3*V +2/3*V];
-                    %disp('U4');
-                case 5 %U5 = (1, 0, 1)
-                    V_abc = [+1/3*V -2/3*V +1/3*V];
-                    %disp('U5');
-                case 6 %U6 = (1, 1, 0)
-                    V_abc = [-2/3*V +1/3*V +1/3*V];
-                    %disp('U6');
-                case 7 %U7 = (1, 1, 1)
+                case 1 %V1 = (1, 0, 0)
+                    V_abc = [2/3*Vdc -1/3*Vdc -1/3*Vdc];
+                    %disp('V1');
+                case 2 %V2 = (1, 1, 0)
+                    V_abc = [1/3*Vdc 1/3*Vdc -2/3*Vdc];
+                    %disp('V2');
+                case 3 %V3 = (0, 1, 0)
+                    V_abc = [-1/3*Vdc 2/3*Vdc -1/3*Vdc];
+                    %disp('V3');
+                case 4 %V4 = (0, 1, 1)
+                    V_abc = [-2/3*Vdc 1/3*Vdc 1/3*Vdc];
+                    %disp('V4');
+                case 5 %V5 = (0, 0, 1)
+                    V_abc = [-1/3*Vdc -1/3*Vdc 2/3*Vdc];
+                    %disp('V5');
+                case 6 %V6 = (1, 0, 1)
+                    V_abc = [1/3*Vdc -2/3*Vdc 1/3*Vdc];
+                    %disp('V6');
+                case 7 %V7 = (1, 1 ,1)
                     V_abc = [0 0 0];
-                    %disp('U7');
+                    %disp('V7');
                 otherwise
                     V_abc = [0; 0; 0];
                     warning('fatal error: undefined space vector.');
@@ -167,93 +167,78 @@ classdef bldc_dynamics
         function ret_obj = generate_SVPWM_signal(obj, U_ref, theta)
             %disp(rad2deg(theta));
             
-            m = sqrt(3) * U_ref / obj.v_bldc;
-            T = 1 / obj.pwm_freq;  %pwm frequency
+            Vdc = obj.v_bldc;
+            a = U_ref / (2/3*Vdc);
+            Ts = 1 / obj.pwm_freq;  %pwm frequency
+
+            sin60 = sin(pi/3);
+            T1 = Ts * a * sin(pi/3 - theta) / sin60;
+            T2 = Ts * a * sin(theta) / sin60;
             
-            obj.u_SVPWM(1, :) = obj.space_vector_to_phase_voltage(0);
-            obj.u_SVPWM(4, :) = obj.space_vector_to_phase_voltage(7);
-            obj.u_SVPWM(7, :) = obj.u_SVPWM(1, :);
+            T1 = abs(T1);
+            T2 = abs(T2);
+            
+            T0 = Ts - (T1 + T2);
+            obj.T_SVPWM = [T0/2; T1/2; T2/2; T0; T2/2; T1/2; T0/2];
+            
+            disp((T1 + T2)/Ts);
+            
+            V0 = obj.space_vector_to_phase_voltage(0);
+            V1 = obj.space_vector_to_phase_voltage(1);
+            V2 = obj.space_vector_to_phase_voltage(2);
+            V3 = obj.space_vector_to_phase_voltage(3);
+            V4 = obj.space_vector_to_phase_voltage(4);
+            V5 = obj.space_vector_to_phase_voltage(5);
+            V6 = obj.space_vector_to_phase_voltage(6);
+            V7 = obj.space_vector_to_phase_voltage(7);
+            
+            obj.u_SVPWM(1, :) = V0;
+            obj.u_SVPWM(4, :) = V7;
+            obj.u_SVPWM(7, :) = V0;
            
             %calculate the section number from the rotation angle
             if(theta >= deg2rad(0) && theta < deg2rad(60))
-                %section I: U0-U4-U6-U7-U7-U6-U4-U0
+                %section I: V0-V1-V2-V7-V7-V2-V1-V0
                 %disp('section 1');
-                theta = theta - deg2rad(0); %angle between U4 and U6
-                T4 = m * T * sin(pi/3 - theta);
-                T6 = m * T * sin(theta);
-                T0 = 1/2*(T - T4 - T6);
-                T7 = T0;
-                disp((T4+T6)/T)
-                obj.T_SVPWM = [T0/2; T4/2; T6/2; T7; T6/2; T4/2; T0/2];
-                obj.u_SVPWM(2, :) = obj.space_vector_to_phase_voltage(4);
-                obj.u_SVPWM(3, :) = obj.space_vector_to_phase_voltage(6);
-                obj.u_SVPWM(5, :) = obj.u_SVPWM(3, :);
-                obj.u_SVPWM(6, :) = obj.u_SVPWM(2, :);
+                obj.u_SVPWM(2, :) = V1;
+                obj.u_SVPWM(3, :) = V2;
+                obj.u_SVPWM(5, :) = V2;
+                obj.u_SVPWM(6, :) = V1;
             elseif(theta >= deg2rad(60) && theta < deg2rad(120))
-                %section II: U0-U2-U6-U7-U7-U2-U6-U0
+                %section II: V0-V3-V2-V7-V7-V2-V3-V0
                 %disp('section 2');
-                theta = theta - deg2rad(60); %angle between U2 and U6
-                T6 = m * T * sin(pi/3 - theta);
-                T2 = m * T * sin(theta);
-                T0 = 1/2*(T - T2 - T6);
-                T7 = T0;
-                obj.T_SVPWM = [T0/2; T2/2; T6/2; T7; T6/2; T2/2; T0/2];
-                obj.u_SVPWM(2, :) = obj.space_vector_to_phase_voltage(2);
-                obj.u_SVPWM(3, :) = obj.space_vector_to_phase_voltage(6);
-                obj.u_SVPWM(5, :) = obj.u_SVPWM(3, :);
-                obj.u_SVPWM(6, :) = obj.u_SVPWM(2, :);
+                obj.u_SVPWM(2, :) = V3;
+                obj.u_SVPWM(3, :) = V2;
+                obj.u_SVPWM(5, :) = V2;
+                obj.u_SVPWM(6, :) = V3;
             elseif(theta >= deg2rad(120) && theta < deg2rad(180))
-                %section III: U0-U2-U3-U7-U7-U2-U3-U0
+                %section III: V0-V3-V4-V7-V7-V4-V3-V0
                 %disp('section 3');
-                theta = theta - deg2rad(120); %angle between U2 and U3
-                T2 = m * T * sin(pi/3 - theta);
-                T3 = m * T * sin(theta);
-                T0 = 1/2*(T - T2 - T3);
-                T7 = T0;
-                obj.T_SVPWM = [T0/2; T2/2; T3/2; T7; T3/2; T2/2; T0/2];
-                obj.u_SVPWM(2, :) = obj.space_vector_to_phase_voltage(2);
-                obj.u_SVPWM(3, :) = obj.space_vector_to_phase_voltage(3);
-                obj.u_SVPWM(5, :) = obj.u_SVPWM(3, :);
-                obj.u_SVPWM(6, :) = obj.u_SVPWM(2, :);
+                obj.u_SVPWM(2, :) = V3;
+                obj.u_SVPWM(3, :) = V4;
+                obj.u_SVPWM(5, :) = V4;
+                obj.u_SVPWM(6, :) = V3;
             elseif(theta >= deg2rad(180) && theta < deg2rad(240))
-                %section IV: U0-U1-U3-U7-U7-U3-U1-U0
+                %section IV: V0-V5-V4-V7-V7-V4-V5-V0
                 %disp('section 4');
-                theta = theta - deg2rad(180); %angle between U1 and U3
-                T3 = m * T * sin(pi/3 - theta);
-                T1 = m * T * sin(theta);
-                T0 = 1/2*(T - T1 - T3);
-                T7 = T0;
-                obj.T_SVPWM = [T0/2; T1/2; T3/2; T7; T3/2; T1/2; T0/2];
-                obj.u_SVPWM(2, :) = obj.space_vector_to_phase_voltage(1);
-                obj.u_SVPWM(3, :) = obj.space_vector_to_phase_voltage(3);
-                obj.u_SVPWM(5, :) = obj.u_SVPWM(3, :);
-                obj.u_SVPWM(6, :) = obj.u_SVPWM(2, :);
+                obj.u_SVPWM(2, :) = V5;
+                obj.u_SVPWM(3, :) = V4;
+                obj.u_SVPWM(5, :) = V4;
+                obj.u_SVPWM(6, :) = V5;
             elseif(theta >= deg2rad(240) && theta < deg2rad(300))
-                %section V: U0-U1-U5-U7-U7-U5-U1-U0
+                %section V: V0-V5-V6-V7-V7-V6-V5-V0
                 %disp('section 5');
-                theta = theta - deg2rad(240); %angle between U1 and U5
-                T1 = m * T * sin(pi/3 - theta);
-                T5 = m * T * sin(theta);
-                T0 = 1/2*(T - T1 - T5);
-                T7 = T0;
-                obj.T_SVPWM = [T0/2; T1/2; T5/2; T7; T5/2; T1/2; T0/2];
-                obj.u_SVPWM(2, :) = obj.space_vector_to_phase_voltage(1);
-                obj.u_SVPWM(3, :) = obj.space_vector_to_phase_voltage(5);
-                obj.u_SVPWM(5, :) = obj.u_SVPWM(3, :);
-                obj.u_SVPWM(6, :) = obj.u_SVPWM(2, :);
+                obj.u_SVPWM(2, :) = V5;
+                obj.u_SVPWM(3, :) = V6;
+                obj.u_SVPWM(5, :) = V6;
+                obj.u_SVPWM(6, :) = V5;
             elseif(theta >= deg2rad(300) && theta < deg2rad(360))
-                %section VI: U0-U4-U5-U7-U7-U5-U4-U0
+                %section VI: V0-V1-V6-V7-V7-V6-V1-V0
                 %disp('section 6');
-                theta = theta - deg2rad(300); %angle between U4 and U5
-                T5 = m * T * sin(pi/3 - theta);
-                T4 = m * T * sin(theta);
-                T0 = 1/2*(T - T4 - T5);
-                T7 = T0;
-                obj.T_SVPWM = [T0/2; T4/2; T5/2; T7; T5/2; T4/2; T0/2];
-                obj.u_SVPWM(2, :) = obj.space_vector_to_phase_voltage(4);
-                obj.u_SVPWM(3, :) = obj.space_vector_to_phase_voltage(5);
-                obj.u_SVPWM(5, :) = obj.u_SVPWM(3, :);
-                obj.u_SVPWM(6, :) = obj.u_SVPWM(2, :);
+                obj.u_SVPWM(2, :) = V1;
+                obj.u_SVPWM(3, :) = V6;
+                obj.u_SVPWM(5, :) = V6;
+                obj.u_SVPWM(6, :) = V1;
             end
             
             ret_obj = obj;
