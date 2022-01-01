@@ -4,14 +4,10 @@ close all;
 % Simulation parameters %
 %=======================%
 
-%simulation run time
-simulation_time = 10; %[s]
-
-bldc_pwm_freq = 10; %[hz]
-bldc = bldc_dynamics;
-bldc = bldc.init(bldc_pwm_freq);
-
-ITERATION_TIMES = bldc_pwm_freq * simulation_time;
+SIMULATION_TIME = 10; %[s], total time of the simulation
+PWM_FREQ = 1000;      %[Hz], PWM frequency of the BLDC model
+SVPWM_STEPS = 7;
+ITERATION_TIMES = PWM_FREQ * SIMULATION_TIME * SVPWM_STEPS;
 
 %============%
 % Plot datas %
@@ -39,12 +35,13 @@ f_b = zeros(1, ITERATION_TIMES);
 f_c = zeros(1, ITERATION_TIMES);
 
 %3-phase control voltages
-v_a = zeros(1, ITERATION_TIMES);
-v_b = zeros(1, ITERATION_TIMES);
-v_c = zeros(1, ITERATION_TIMES);
+v_a = zeros(1, 2*ITERATION_TIMES);
+v_b = zeros(1, 2*ITERATION_TIMES);
+v_c = zeros(1, 2*ITERATION_TIMES);
 
 %time sequence
 time_arr = zeros(1, ITERATION_TIMES);
+pwm_time_arr = zeros(1, 2*ITERATION_TIMES);
 
 %PI speed control
 w_d = zeros(1, ITERATION_TIMES); %desited motor speed
@@ -68,11 +65,16 @@ V_gamma = zeros(1, ITERATION_TIMES);
 % Simulation main loop %
 %======================%
 
+%process model
+bldc = bldc_dynamics;
+bldc = bldc.init(PWM_FREQ);
+
 SVPWM_state = 1;
-Uref = 2/3 * 50;
+Uref = 2/3 * 80;
 angle = 0;
 
-for i = 1: ITERATION_TIMES    
+i = 1;
+while i <= ITERATION_TIMES
     %apply clarke transformation
     V_alpha_beta_gamma = bldc.clarke_transform(bldc.e);
     
@@ -80,7 +82,7 @@ for i = 1: ITERATION_TIMES
     switch(SVPWM_state)
         case 1
             %generate test signal of Uref
-            angle = angle + deg2rad(0);
+            angle = angle + deg2rad(1);
             angle = mod(angle, 2*pi);
             
             %execute field-oriented control algorithm
@@ -111,10 +113,19 @@ for i = 1: ITERATION_TIMES
     %disp(bldc.T_SVPWM);
     SVPWM_state = SVPWM_state + 1;
     
+    %reset state to 1 after finished full 7-segment operation
     if(SVPWM_state > 7)
         SVPWM_state = 1;
     end
     
+    %skip dt == 0 (happens if the desired space vector equals V1, V2, ..., V7)
+    if(abs(dt) < 1e-6)
+        continue;
+    end
+    
+    %disp(SVPWM_state);
+    %disp(dt);
+
     %update the BLDC dynamics
     bldc = bldc.update(dt);
         
@@ -122,10 +133,14 @@ for i = 1: ITERATION_TIMES
     % Plot datas %
     %============%
     
-    %time sequence
-    if(i > 1)
-        time_arr(i) = time_arr(i - 1) + dt;
+    %update time sequence
+    if(i > 1)        
+        time_arr(i) = time_arr(i - 1) + dt;       
     end
+    
+    %time sequence for control voltage
+    pwm_time_arr(2*i-1) = time_arr(i); %time for expressing the control voltage from t-1 to t
+    pwm_time_arr(2*i) = time_arr(i);   %time for expressing the control voltage from t to t+1
     
     %state variables
     i_a(i) = bldc.x(1); %current of phase A
@@ -134,10 +149,17 @@ for i = 1: ITERATION_TIMES
     omega_m(i) = bldc.x(4); %motor speed
     theta_r(i) = bldc.x(5); %rotor position
     
-    %control variables
-    v_a(i) = bldc.u(1); %voltage of phase A
-    v_b(i) = bldc.u(2); %voltage of phase B
-    v_c(i) = bldc.u(3); %voltage of phase C
+    %control voltage from t-1 to t
+    if i > 1
+        v_a(2*i-1) = v_a(2*(i-1));
+        v_b(2*i-1) = v_b(2*(i-1));
+        v_c(2*i-1) = v_c(2*(i-1));
+    end
+    
+    %control voltage from t to t+1
+    v_a(2*i) = bldc.u(1);
+    v_b(2*i) = bldc.u(2);
+    v_c(2*i) = bldc.u(3);
     
     %back EMF
     e_a(i) = bldc.e(1);
@@ -156,6 +178,9 @@ for i = 1: ITERATION_TIMES
     V_alpha(i) = V_alpha_beta_gamma(1);
     V_beta(i) = V_alpha_beta_gamma(2);
     V_gamma(i) = V_alpha_beta_gamma(3);
+    
+    %update iterator
+    i = i + 1;
    end
 
 figure('Name', 'Desired current');
@@ -192,19 +217,19 @@ ylabel('i_c');
 %control voltage
 figure('Name', 'Control votage');
 subplot (3, 1, 1);
-plot(time_arr(:), v_a(:));
+plot(pwm_time_arr(:), v_a(:));
 xlim([0 time_arr(end)]);
 ylim([-110 110]);
 xlabel('time [s]');
 ylabel('v_a');
 subplot (3, 1, 2);
-plot(time_arr(:), v_b(:));
+plot(pwm_time_arr(:), v_b(:));
 xlim([0 time_arr(end)]);
 ylim([-110 110]);
 xlabel('time [s]');
 ylabel('v_b');
 subplot (3, 1, 3);
-plot(time_arr(:), v_c(:));
+plot(pwm_time_arr(:), v_c(:));
 xlim([0 time_arr(end)]);
 ylim([-110 110]);
 xlabel('time [s]');

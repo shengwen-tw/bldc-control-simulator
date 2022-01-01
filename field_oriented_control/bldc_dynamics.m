@@ -179,9 +179,9 @@ classdef bldc_dynamics
             T2 = abs(T2);
             
             T0 = Ts - (T1 + T2);
-            obj.T_SVPWM = [T0/2; T1/2; T2/2; T0; T2/2; T1/2; T0/2];
+            obj.T_SVPWM = [T0/2; T1; T2; T0; T2; T1; T0/2];
             
-            disp((T1 + T2)/Ts);
+            %disp((T1+T2)/Ts);
             
             V0 = obj.space_vector_to_phase_voltage(0);
             V1 = obj.space_vector_to_phase_voltage(1);
@@ -241,6 +241,7 @@ classdef bldc_dynamics
                 obj.u_SVPWM(6, :) = V1;
             end
             
+            %disp(obj.u_SVPWM);
             ret_obj = obj;
         end
                 
