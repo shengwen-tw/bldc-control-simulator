@@ -37,7 +37,7 @@ classdef bldc_dynamics
         v_bldc = 100;
         
         %SVPWM
-        pwm_freq = 100         %frequency of the PWM for bldc control
+        pwm_freq;              %frequency of the PWM for bldc control
         u_SVPWM = zeros(7, 3); %3 phase control voltage of the 7-segement SVPWM
         T_SVPWM = zeros(7, 1); %time period of the 7-segment SVPWM
     end

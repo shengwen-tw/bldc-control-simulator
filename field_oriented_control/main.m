@@ -1,12 +1,12 @@
 close all;
 
-%=======================%
-% Simulation parameters %
-%=======================%
+%===================%
+% Simulator options %
+%===================%
 
 SIMULATION_TIME = 10; %[s], total time of the simulation
 PWM_FREQ = 1000;      %[Hz], PWM frequency of the BLDC model
-SVPWM_STEPS = 7;
+SVPWM_STEPS = 7;      %should not change (7-segment SVPWM)
 ITERATION_TIMES = PWM_FREQ * SIMULATION_TIME * SVPWM_STEPS;
 
 %============%
@@ -66,9 +66,9 @@ I_q = zeros(1, ITERATION_TIMES);
 I_d = zeros(1, ITERATION_TIMES);
 I_z = zeros(1, ITERATION_TIMES);
 
-%======================%
-% Simulation main loop %
-%======================%
+%==============================%
+% Process model and controller %
+%==============================%
 
 %process model
 bldc = bldc_dynamics;
@@ -78,9 +78,31 @@ SVPWM_state = 1;
 Uref = 100 / sqrt(3);
 angle = 0;
 
-%control parameters
+%===========================%
+% Id, Iq control parameters %
+%===========================%
+
 Id_d = 0; %desired Id current
 Iq_d = 2; %desired Iq current
+%
+Kp_Idq = 5; %Kp gain of the Id and Iq controller
+Ki_Idq = 1; %Ki gain of the Id and Iq controller
+%
+e_Id = 0;
+e_Id_last = 0;
+%
+e_Iq = 0;
+e_Iq_last = 0;
+%
+V_d = 0;
+V_q = 0;
+%
+V_d_last = 0;
+V_q_last = 0;
+
+%======================%
+% Simulation main loop %
+%======================%
 
 i = 1;
 while i <= ITERATION_TIMES
@@ -92,7 +114,21 @@ while i <= ITERATION_TIMES
     %main loop has 7 procedures to handle 7-segment SVPWM
     switch(SVPWM_state)
         case 1
-            %current control
+            %dq current control
+            e_Id = Id_d - I_dqz(1);
+            e_Iq = Iq_d - I_dqz(2);
+            V_d = V_d_last + (Kp_Idq * (e_Id - e_Id_last)) + (Ki_Idq * e_Id);
+            V_q = V_q_last + (Kp_Idq * (e_Iq - e_Id_last)) + (Ki_Idq * e_Iq);
+            V_d_last = V_d;
+            V_q_last = V_q;
+            
+            %inverse park transformation of the voltage control signal
+            V_dqz = [V_d; V_q; 0];
+            V_alpha_beta_gamma = bldc.inv_park_transform(V_dqz, bldc.x(5));
+            
+            %convert the control signal from alpha-beta coordinate to the
+            %space vector
+            %TODO
             
             %generate test signal of Uref
             angle = angle + deg2rad(1);
@@ -101,24 +137,31 @@ while i <= ITERATION_TIMES
             %execute field-oriented control algorithm
             bldc = bldc.generate_SVPWM_signal(Uref, angle);
             
+            %SVPWM output (1/7)
             bldc.u(1:3) = bldc.u_SVPWM(1, 1:3).';
             dt = bldc.T_SVPWM(1);
         case 2
+            %SVPWM output (2/7)
             bldc.u(1:3) = bldc.u_SVPWM(2, 1:3).';
             dt = bldc.T_SVPWM(2);
         case 3
+            %SVPWM output (3/7)
             bldc.u(1:3) = bldc.u_SVPWM(3, 1:3).';
             dt = bldc.T_SVPWM(3);
         case 4
+            %SVPWM output (4/7)
             bldc.u(1:3) = bldc.u_SVPWM(4, 1:3).';
             dt = bldc.T_SVPWM(4);
         case 5
+            %SVPWM output (5/7)
             bldc.u(1:3) = bldc.u_SVPWM(5, 1:3).';
             dt = bldc.T_SVPWM(5);
         case 6
+            %SVPWM output (6/7)
             bldc.u(1:3) = bldc.u_SVPWM(6, 1:3).';
             dt = bldc.T_SVPWM(6);
         case 7
+            %SVPWM output (7/7)
             bldc.u(1:3) = bldc.u_SVPWM(7, 1:3).';
             dt = bldc.T_SVPWM(7);
     end
