@@ -164,23 +164,23 @@ classdef bldc_dynamics
             end
         end
         
-        function ret_obj = generate_SVPWM_signal(obj, U_ref, theta)
+        function ret_obj = generate_SVPWM_signal(obj, V_ref, theta)
             %disp(rad2deg(theta));
             
             Vdc = obj.v_bldc;
-            a = U_ref / (2/3*Vdc);
-            Ts = 1 / obj.pwm_freq; %period of the PWM
-
+            a = V_ref / (2/3*Vdc);
             theta_local = mod(theta, pi/3);
             sin60 = sin(pi/3);
             
+            Ts = 1 / obj.pwm_freq; %period of the PWM
             T1 = Ts * a * sin(pi/3 - theta_local) / sin60;
             T2 = Ts * a * sin(theta_local) / sin60;           
             T0 = Ts - (T1 + T2);
             obj.T_SVPWM = [T0/2; T1; T2; T0; T2; T1; T0/2];
             
-            disp((T1+T2)/Ts);
+            %disp((T1+T2)/Ts);
             
+            %space vectors
             V0 = obj.space_vector_to_phase_voltage(0);
             V1 = obj.space_vector_to_phase_voltage(1);
             V2 = obj.space_vector_to_phase_voltage(2);
@@ -189,54 +189,68 @@ classdef bldc_dynamics
             V5 = obj.space_vector_to_phase_voltage(5);
             V6 = obj.space_vector_to_phase_voltage(6);
             V7 = obj.space_vector_to_phase_voltage(7);
-            
-            obj.u_SVPWM(1, :) = V0;
-            obj.u_SVPWM(4, :) = V7;
-            obj.u_SVPWM(7, :) = V0;
-           
+                       
             %calculate the section number from the rotation angle
             if(theta >= deg2rad(0) && theta < deg2rad(60))
                 %section 1: V0-V1-V2-V7-V7-V2-V1-V0
                 %disp('section 1');
+                obj.u_SVPWM(1, :) = V0;
                 obj.u_SVPWM(2, :) = V1;
                 obj.u_SVPWM(3, :) = V2;
+                obj.u_SVPWM(4, :) = V7;
                 obj.u_SVPWM(5, :) = V2;
                 obj.u_SVPWM(6, :) = V1;
+                obj.u_SVPWM(7, :) = V0;
             elseif(theta >= deg2rad(60) && theta < deg2rad(120))
                 %section 2: V0-V3-V2-V7-V7-V2-V3-V0
                 %disp('section 2');
+                obj.u_SVPWM(1, :) = V0;
                 obj.u_SVPWM(2, :) = V3;
                 obj.u_SVPWM(3, :) = V2;
+                obj.u_SVPWM(4, :) = V7;
                 obj.u_SVPWM(5, :) = V2;
                 obj.u_SVPWM(6, :) = V3;
+                obj.u_SVPWM(7, :) = V0;
             elseif(theta >= deg2rad(120) && theta < deg2rad(180))
                 %section 3: V0-V3-V4-V7-V7-V4-V3-V0
                 %disp('section 3');
+                obj.u_SVPWM(1, :) = V0;
                 obj.u_SVPWM(2, :) = V3;
                 obj.u_SVPWM(3, :) = V4;
+                obj.u_SVPWM(4, :) = V7;
                 obj.u_SVPWM(5, :) = V4;
                 obj.u_SVPWM(6, :) = V3;
+                obj.u_SVPWM(7, :) = V0;
             elseif(theta >= deg2rad(180) && theta < deg2rad(240))
                 %section 4: V0-V5-V4-V7-V7-V4-V5-V0
                 %disp('section 4');
+                obj.u_SVPWM(1, :) = V0;
                 obj.u_SVPWM(2, :) = V5;
                 obj.u_SVPWM(3, :) = V4;
+                obj.u_SVPWM(4, :) = V7;
                 obj.u_SVPWM(5, :) = V4;
                 obj.u_SVPWM(6, :) = V5;
+                obj.u_SVPWM(7, :) = V0;
             elseif(theta >= deg2rad(240) && theta < deg2rad(300))
                 %section 5: V0-V5-V6-V7-V7-V6-V5-V0
                 %disp('section 5');
+                obj.u_SVPWM(1, :) = V0;
                 obj.u_SVPWM(2, :) = V5;
                 obj.u_SVPWM(3, :) = V6;
+                obj.u_SVPWM(4, :) = V7;
                 obj.u_SVPWM(5, :) = V6;
                 obj.u_SVPWM(6, :) = V5;
+                obj.u_SVPWM(7, :) = V0;
             elseif(theta >= deg2rad(300) && theta < deg2rad(360))
                 %section 6: V0-V1-V6-V7-V7-V6-V1-V0
                 %disp('section 6');
+                obj.u_SVPWM(1, :) = V0;
                 obj.u_SVPWM(2, :) = V1;
                 obj.u_SVPWM(3, :) = V6;
+                obj.u_SVPWM(4, :) = V7;
                 obj.u_SVPWM(5, :) = V6;
                 obj.u_SVPWM(6, :) = V1;
+                obj.u_SVPWM(7, :) = V0;
             end
             
             %disp(obj.u_SVPWM);

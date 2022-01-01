@@ -70,7 +70,7 @@ bldc = bldc_dynamics;
 bldc = bldc.init(PWM_FREQ);
 
 SVPWM_state = 1;
-Uref = 2/3 * 80;
+Uref = 100 / sqrt(3);
 angle = 0;
 
 i = 1;
