@@ -56,10 +56,15 @@ i_c_d = zeros(1, ITERATION_TIMES); %desired i_c current
 %motor torque
 torque = zeros(1, ITERATION_TIMES);
 
-%clarke transformion
-V_alpha = zeros(1, ITERATION_TIMES);
-V_beta = zeros(1, ITERATION_TIMES);
-V_gamma = zeros(1, ITERATION_TIMES);
+%clarke transformation
+I_alpha = zeros(1, ITERATION_TIMES);
+I_beta = zeros(1, ITERATION_TIMES);
+I_gamma = zeros(1, ITERATION_TIMES);
+
+%park transformation
+I_q = zeros(1, ITERATION_TIMES);
+I_d = zeros(1, ITERATION_TIMES);
+I_z = zeros(1, ITERATION_TIMES);
 
 %======================%
 % Simulation main loop %
@@ -73,14 +78,22 @@ SVPWM_state = 1;
 Uref = 100 / sqrt(3);
 angle = 0;
 
+%control parameters
+Id_d = 0; %desired Id current
+Iq_d = 2; %desired Iq current
+
 i = 1;
 while i <= ITERATION_TIMES
-    %apply clarke transformation
-    V_alpha_beta_gamma = bldc.clarke_transform(bldc.e);
+    %apply clarke and park transformation on the current
+    I_abc = [bldc.x(1); bldc.x(2); bldc.x(3)];
+    I_alpha_beta_gamma = bldc.clarke_transform(I_abc);
+    I_dqz = bldc.park_transform(I_alpha_beta_gamma, bldc.x(5));
     
     %main loop has 7 procedures to handle 7-segment SVPWM
     switch(SVPWM_state)
         case 1
+            %current control
+            
             %generate test signal of Uref
             angle = angle + deg2rad(1);
             angle = mod(angle, 2*pi);
@@ -175,9 +188,14 @@ while i <= ITERATION_TIMES
     torque(i) = bldc.torque;
     
     %clarke transformation
-    V_alpha(i) = V_alpha_beta_gamma(1);
-    V_beta(i) = V_alpha_beta_gamma(2);
-    V_gamma(i) = V_alpha_beta_gamma(3);
+    I_alpha(i) = I_alpha_beta_gamma(1);
+    I_beta(i) = I_alpha_beta_gamma(2);
+    I_gamma(i) = I_alpha_beta_gamma(3);
+    
+    %park transformation
+    I_d(i) = I_dqz(1);
+    I_q(i) = I_dqz(2);
+    I_z(i) = I_dqz(3);
     
     %update iterator
     i = i + 1;
@@ -302,22 +320,43 @@ xlabel('time [s]');
 ylabel('\tau [Nm]');
 
 %clarke transformation
-figure('Name', 'Clarke Transformation');
+figure('Name', 'Clarke Transformation of the current');
 subplot (3, 1, 1);
 plot(time_arr(:), V_alpha(:));
 xlim([0 time_arr(end)]);
-ylim([-1.3 1.3]);
+ylim([-5 5]);
 xlabel('theta_r');
-ylabel('V_{\alpha}');
+ylabel('I_{\alpha}');
 subplot (3, 1, 2);
 plot(time_arr(:), V_beta(:));
 xlim([0 time_arr(end)]);
-ylim([-1.3 1.3]);
+ylim([-5 5]);
 xlabel('theta_r');
-ylabel('V_{\beta}');
+ylabel('I_{\beta}');
 subplot (3, 1, 3);
 plot(time_arr(:), V_gamma(:));
 xlim([0 time_arr(end)]);
-ylim([-1.3 1.3]);
+ylim([-5 5]);
 xlabel('theta_r');
-ylabel('V_{\gamma}');
+ylabel('I_{\gamma}');
+
+%park transformation
+figure('Name', 'Park Transformation of the current');
+subplot (3, 1, 1);
+plot(time_arr(:), I_d(:));
+xlim([0 time_arr(end)]);
+ylim([-10 10]);
+xlabel('theta_r');
+ylabel('I_d');
+subplot (3, 1, 2);
+plot(time_arr(:), I_q(:));
+xlim([0 time_arr(end)]);
+ylim([-10 10]);
+xlabel('theta_r');
+ylabel('I_q');
+subplot (3, 1, 3);
+plot(time_arr(:), I_z(:));
+xlim([0 time_arr(end)]);
+ylim([-10 10]);
+xlabel('theta_r');
+ylabel('I_z');
