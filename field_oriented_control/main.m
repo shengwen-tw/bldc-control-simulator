@@ -17,6 +17,9 @@ ITERATION_TIMES = PWM_FREQ * SIMULATION_TIME * SVPWM_STEPS;
 i_a = zeros(1, ITERATION_TIMES);
 i_b = zeros(1, ITERATION_TIMES);
 i_c = zeros(1, ITERATION_TIMES);
+I_a_des = zeros(1, ITERATION_TIMES);
+I_b_des = zeros(1, ITERATION_TIMES);
+I_c_des = zeros(1, ITERATION_TIMES);
 
 %motor speed
 omega_m = zeros(1, ITERATION_TIMES);
@@ -43,15 +46,14 @@ v_c = zeros(1, 2*ITERATION_TIMES);
 time_arr = zeros(1, ITERATION_TIMES);
 pwm_time_arr = zeros(1, 2*ITERATION_TIMES);
 
-%PI speed control
+%speed control
 w_d = zeros(1, ITERATION_TIMES); %desited motor speed
 T_d = zeros(1, ITERATION_TIMES); %desired torque
 
-%ysteresis control parameters
-i_d = zeros(1, ITERATION_TIMES);   %desited current
-i_a_d = zeros(1, ITERATION_TIMES); %desired i_a current
-i_b_d = zeros(1, ITERATION_TIMES); %desired i_b current
-i_c_d = zeros(1, ITERATION_TIMES); %desired i_c current
+%control signal in alpha-beta-gamma coordinate
+V_alpha_d_arr = zeros(1, ITERATION_TIMES); %desired alpha voltage
+V_beta_d_arr = zeros(1, ITERATION_TIMES); %desired beta voltage
+V_gamma_d_arr = zeros(1, ITERATION_TIMES); %desired gamma voltage
 
 %motor torque
 torque = zeros(1, ITERATION_TIMES);
@@ -60,10 +62,14 @@ torque = zeros(1, ITERATION_TIMES);
 I_alpha = zeros(1, ITERATION_TIMES);
 I_beta = zeros(1, ITERATION_TIMES);
 I_gamma = zeros(1, ITERATION_TIMES);
+%
+I_alpha_d = zeros(1, ITERATION_TIMES);
+I_beta_d = zeros(1, ITERATION_TIMES);
+I_gamma_d = zeros(1, ITERATION_TIMES);
 
 %park transformation
-I_q = zeros(1, ITERATION_TIMES);
 I_d = zeros(1, ITERATION_TIMES);
+I_q = zeros(1, ITERATION_TIMES);
 I_z = zeros(1, ITERATION_TIMES);
 
 %==============================%
@@ -75,8 +81,8 @@ bldc = bldc_dynamics;
 bldc = bldc.init(PWM_FREQ);
 
 SVPWM_state = 1;
-Uref = 100 / sqrt(3);
-angle = 0;
+V_ref = 0;
+SV_angle = 0;
 
 %===========================%
 % Id, Iq control parameters %
@@ -85,8 +91,8 @@ angle = 0;
 Id_d = 0; %desired Id current
 Iq_d = 2; %desired Iq current
 %
-Kp_Idq = 5; %Kp gain of the Id and Iq controller
-Ki_Idq = 1; %Ki gain of the Id and Iq controller
+Kp_Idq = 0.1; %Kp gain of the Id and Iq controller
+Ki_Idq = 0; %Ki gain of the Id and Iq controller
 %
 e_Id = 0;
 e_Id_last = 0;
@@ -111,6 +117,11 @@ while i <= ITERATION_TIMES
     I_alpha_beta_gamma = bldc.clarke_transform(I_abc);
     I_dqz = bldc.park_transform(I_alpha_beta_gamma, bldc.x(5));
     
+    %apply inverse clarke and park transformation of the desired current
+    I_dqz_des = [Id_d; Iq_d; 0];
+    I_alpha_beta_gamma_d = bldc.inv_park_transform(I_dqz_des, bldc.x(5));
+    I_abc_d = bldc.inv_clarke_transform(I_alpha_beta_gamma_d);
+    
     %main loop has 7 procedures to handle 7-segment SVPWM
     switch(SVPWM_state)
         case 1
@@ -124,18 +135,23 @@ while i <= ITERATION_TIMES
             
             %inverse park transformation of the voltage control signal
             V_dqz = [V_d; V_q; 0];
-            V_alpha_beta_gamma = bldc.inv_park_transform(V_dqz, bldc.x(5));
+            V_alpha_beta_gamma_d = bldc.inv_park_transform(V_dqz, bldc.x(5));
+            V_alpha_d = V_alpha_beta_gamma_d(1);
+            V_beta_d = V_alpha_beta_gamma_d(2);
+            V_gamma_d = V_alpha_beta_gamma_d(3);
             
             %convert the control signal from alpha-beta coordinate to the
             %space vector
-            %TODO
+            %V_ref = sqrt(V_alpha_d*V_alpha_d + V_beta_d*V_beta_d);
+            %SV_angle = atan2(V_beta_d, V_alpha_d);
             
             %generate test signal of Uref
-            angle = angle + deg2rad(1);
-            angle = mod(angle, 2*pi);
+            %Vref = 100 / sqrt(3);
+            SV_angle = SV_angle + deg2rad(1);
+            SV_angle = mod(SV_angle, 2*pi);
             
             %execute field-oriented control algorithm
-            bldc = bldc.generate_SVPWM_signal(Uref, angle);
+            bldc = bldc.generate_SVPWM_signal(Vref, SV_angle);
             
             %SVPWM output (1/7)
             bldc.u(1:3) = bldc.u_SVPWM(1, 1:3).';
@@ -205,6 +221,10 @@ while i <= ITERATION_TIMES
     omega_m(i) = bldc.x(4); %motor speed
     theta_r(i) = bldc.x(5); %rotor position
     
+    I_a_des(i) = I_abc_d(1);
+    I_b_des(i) = I_abc_d(2);
+    I_c_des(i) = I_abc_d(3);
+    
     %control voltage from t-1 to t
     if i > 1
         v_a(2*i-1) = v_a(2*(i-1));
@@ -234,41 +254,41 @@ while i <= ITERATION_TIMES
     I_alpha(i) = I_alpha_beta_gamma(1);
     I_beta(i) = I_alpha_beta_gamma(2);
     I_gamma(i) = I_alpha_beta_gamma(3);
+    I_alpha_d(i) = I_alpha_beta_gamma_d(1);
+    I_beta_d(i) = I_alpha_beta_gamma_d(2);
+    I_gamma_d(i) = I_alpha_beta_gamma_d(3);
     
     %park transformation
     I_d(i) = I_dqz(1);
     I_q(i) = I_dqz(2);
     I_z(i) = I_dqz(3);
     
+    V_alpha_d_arr(i) = V_alpha_d;
+    V_beta_d_arr(i) = V_beta_d;
+    V_gamma_d_arr(i) = V_gamma_d;
+    
     %update iterator
     i = i + 1;
-   end
-
-figure('Name', 'Desired current');
-plot(time_arr(:), i_d(:));
-xlim([0 time_arr(end)]);
-ylim([-20 50]);
-xlabel('time [s]');
-ylabel('i_d');
+end
 
 %3-phase back EMF
 figure('Name', '3 phase currents');
 subplot (3, 1, 1);
-plot(time_arr(:), i_a(:), time_arr(:), i_a_d(:));
+plot(time_arr(:), i_a(:), time_arr(:), I_a_des(:));
 legend('Actual current', 'Desired current');
 xlim([0 time_arr(end)]);
 ylim([-5 5]);
 xlabel('time [s]');
 ylabel('i_a');
 subplot (3, 1, 2);
-plot(time_arr(:), i_b(:), time_arr(:), i_b_d(:));
+plot(time_arr(:), i_b(:), time_arr(:), I_b_des(:));
 legend('Actual current', 'Desired current');
 xlim([0 time_arr(end)]);
 ylim([-5 5]);
 xlabel('time [s]');
 ylabel('i_b');
 subplot (3, 1, 3);
-plot(time_arr(:), i_c(:), time_arr(:), i_c_d(:));
+plot(time_arr(:), i_c(:), time_arr(:), I_c_des(:));
 legend('Actual current', 'Desired current');
 xlim([0 time_arr(end)]);
 ylim([-5 5]);
@@ -295,6 +315,27 @@ xlim([0 time_arr(end)]);
 ylim([-110 110]);
 xlabel('time [s]');
 ylabel('v_c');
+
+%control voltage
+figure('Name', 'V_alpha V_beta V_gamma');
+subplot (3, 1, 1);
+plot(time_arr(:), V_alpha_d_arr(:));
+xlim([0 time_arr(end)]);
+ylim([-110 110]);
+xlabel('time [s]');
+ylabel('V_{\alpha}');
+subplot (3, 1, 2);
+plot(time_arr(:), V_beta_d_arr(:));
+xlim([0 time_arr(end)]);
+ylim([-110 110]);
+xlabel('time [s]');
+ylabel('V_{\beta}');
+subplot (3, 1, 3);
+plot(time_arr(:), V_gamma_d_arr(:));
+xlim([0 time_arr(end)]);
+ylim([-110 110]);
+xlabel('time [s]');
+ylabel('V_{\gamma}');
 
 figure('Name', 'Motor speed');
 plot(time_arr(:), 9.5493 .* omega_m(:), time_arr(:), 9.5493 .* w_d(:));
@@ -363,28 +404,31 @@ xlabel('time [s]');
 ylabel('\tau [Nm]');
 
 %clarke transformation
-figure('Name', 'Clarke Transformation of the current');
+figure('Name', 'I_alpha I_beta I_gamma');
 subplot (3, 1, 1);
-plot(time_arr(:), V_alpha(:));
+plot(time_arr(:), I_alpha(:), time_arr(:), I_alpha_d(:));
+legend('Actual current', 'Desired current');
 xlim([0 time_arr(end)]);
 ylim([-5 5]);
 xlabel('theta_r');
 ylabel('I_{\alpha}');
 subplot (3, 1, 2);
-plot(time_arr(:), V_beta(:));
+plot(time_arr(:), I_beta(:), time_arr(:), I_beta_d(:));
+legend('Actual current', 'Desired current');
 xlim([0 time_arr(end)]);
 ylim([-5 5]);
 xlabel('theta_r');
 ylabel('I_{\beta}');
 subplot (3, 1, 3);
-plot(time_arr(:), V_gamma(:));
+plot(time_arr(:), I_gamma(:), time_arr(:), I_gamma_d(:));
+legend('Actual current', 'Desired current');
 xlim([0 time_arr(end)]);
 ylim([-5 5]);
 xlabel('theta_r');
 ylabel('I_{\gamma}');
 
 %park transformation
-figure('Name', 'Park Transformation of the current');
+figure('Name', 'I_d I_q I_z');
 subplot (3, 1, 1);
 plot(time_arr(:), I_d(:));
 xlim([0 time_arr(end)]);
