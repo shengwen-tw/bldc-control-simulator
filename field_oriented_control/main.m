@@ -94,9 +94,9 @@ V_abc_d = [0; 0; 0];
 %===========================%
 
 Id_d = 0; %desired Id current
-Iq_d = 2; %desired Iq current
+Iq_d = 5; %desired Iq current
 %
-Kp_Idq = 12; %Kp gain of the Id and Iq controller
+Kp_Idq = 10; %Kp gain of the Id and Iq controller
 Ki_Idq = 0; %Ki gain of the Id and Iq controller
 %
 e_Id = 0;
