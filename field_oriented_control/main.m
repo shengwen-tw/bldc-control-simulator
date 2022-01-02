@@ -96,7 +96,7 @@ V_abc_d = [0; 0; 0];
 Id_d = 0; %desired Id current
 Iq_d = 2; %desired Iq current
 %
-Kp_Idq = 0.1; %Kp gain of the Id and Iq controller
+Kp_Idq = 12; %Kp gain of the Id and Iq controller
 Ki_Idq = 0; %Ki gain of the Id and Iq controller
 %
 e_Id = 0;
@@ -134,7 +134,9 @@ while i <= ITERATION_TIMES
             e_Id = Id_d - I_dqz(1);
             e_Iq = Iq_d - I_dqz(2);
             V_d = V_d_last + (Kp_Idq * (e_Id - e_Id_last)) + (Ki_Idq * e_Id);
-            V_q = V_q_last + (Kp_Idq * (e_Iq - e_Id_last)) + (Ki_Idq * e_Iq);
+            V_q = V_q_last + (Kp_Idq * (e_Iq - e_Iq_last)) + (Ki_Idq * e_Iq);
+            e_Id_last = e_Id;
+            e_Iq_last = e_Iq;
             V_d_last = V_d;
             V_q_last = V_q;
             
