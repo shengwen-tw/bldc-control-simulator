@@ -41,6 +41,9 @@ f_c = zeros(1, ITERATION_TIMES);
 v_a = zeros(1, 2*ITERATION_TIMES);
 v_b = zeros(1, 2*ITERATION_TIMES);
 v_c = zeros(1, 2*ITERATION_TIMES);
+V_a_d = zeros(1, ITERATION_TIMES);
+V_b_d = zeros(1, ITERATION_TIMES);
+V_c_d = zeros(1, ITERATION_TIMES);
 
 %time sequence
 time_arr = zeros(1, ITERATION_TIMES);
@@ -83,6 +86,8 @@ bldc = bldc.init(PWM_FREQ);
 SVPWM_state = 1;
 V_ref = 0;
 SV_angle = 0;
+
+V_abc_d = [0; 0; 0];
 
 %===========================%
 % Id, Iq control parameters %
@@ -140,6 +145,9 @@ while i <= ITERATION_TIMES
             V_beta_d = V_alpha_beta_gamma_d(2);
             V_gamma_d = V_alpha_beta_gamma_d(3);
             
+            %convert V_alpha_beta_gamma to Vabc for debugging
+            V_abc_d = bldc.inv_clarke_transform(V_alpha_beta_gamma_d);
+                        
             %convert the control signal from alpha-beta coordinate to the
             %space vector
             %V_ref = sqrt(V_alpha_d*V_alpha_d + V_beta_d*V_beta_d);
@@ -237,6 +245,11 @@ while i <= ITERATION_TIMES
     v_b(2*i) = bldc.u(2);
     v_c(2*i) = bldc.u(3);
     
+    %desired control voltage
+    V_a_d(i) = V_abc_d(1);
+    V_b_d(i) = V_abc_d(2);
+    V_c_d(i) = V_abc_d(3);
+    
     %back EMF
     e_a(i) = bldc.e(1);
     e_b(i) = bldc.e(2);
@@ -298,19 +311,22 @@ ylabel('i_c');
 %control voltage
 figure('Name', 'Control votage');
 subplot (3, 1, 1);
-plot(pwm_time_arr(:), v_a(:));
+plot(pwm_time_arr(:), v_a(:), time_arr(:), V_a_d(:));
+legend('Actual voltage', 'Desired voltage');
 xlim([0 time_arr(end)]);
 ylim([-110 110]);
 xlabel('time [s]');
 ylabel('v_a');
 subplot (3, 1, 2);
-plot(pwm_time_arr(:), v_b(:));
+plot(pwm_time_arr(:), v_b(:), time_arr(:), V_b_d(:));
+legend('Actual voltage', 'Desired voltage');
 xlim([0 time_arr(end)]);
 ylim([-110 110]);
 xlabel('time [s]');
 ylabel('v_b');
 subplot (3, 1, 3);
-plot(pwm_time_arr(:), v_c(:));
+plot(pwm_time_arr(:), v_c(:), time_arr(:), V_c_d(:));
+legend('Actual voltage', 'Desired voltage');
 xlim([0 time_arr(end)]);
 ylim([-110 110]);
 xlabel('time [s]');
