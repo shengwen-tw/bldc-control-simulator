@@ -253,6 +253,7 @@ classdef bldc_dynamics
                 obj.u_SVPWM(7, :) = V0;
             end
             
+            %disp(obj.T_SVPWM);
             %disp(obj.u_SVPWM);
             ret_obj = obj;
         end

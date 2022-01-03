@@ -156,7 +156,7 @@ while i <= ITERATION_TIMES
             %SV_angle = atan2(V_beta_d, V_alpha_d);
             
             %generate test signal of Uref
-            %Vref = 100 / sqrt(3);
+            Vref = 100 / sqrt(3);
             SV_angle = SV_angle + deg2rad(1);
             SV_angle = mod(SV_angle, 2*pi);
             
@@ -201,7 +201,7 @@ while i <= ITERATION_TIMES
     end
     
     %skip dt == 0 (happens if the desired space vector equals V1, V2, ..., V7)
-    if(abs(dt) < 1e-6)
+    if(abs(dt) < 1e-16)
         continue;
     end
     
@@ -210,7 +210,7 @@ while i <= ITERATION_TIMES
 
     %update the BLDC dynamics
     bldc = bldc.update(dt);
-        
+       
     %============%
     % Plot datas %
     %============%
@@ -219,7 +219,7 @@ while i <= ITERATION_TIMES
     if(i > 1)        
         time_arr(i) = time_arr(i - 1) + dt;       
     end
-    
+        
     %time sequence for control voltage
     pwm_time_arr(2*i-1) = time_arr(i); %time for expressing the control voltage from t-1 to t
     pwm_time_arr(2*i) = time_arr(i);   %time for expressing the control voltage from t to t+1
