@@ -4,10 +4,10 @@ close all;
 % Simulator options %
 %===================%
 
-SIMULATION_TIME = 10; %[s], total time of the simulation
+SIMULATION_TIME = 20; %[s], total time of the simulation
 PWM_FREQ = 1000;      %[Hz], PWM frequency of the BLDC model
 SVPWM_STEPS = 7;      %should not change (7-segment SVPWM)
-ITERATION_TIMES = PWM_FREQ * SIMULATION_TIME * SVPWM_STEPS;
+ITERATION_TIMES = PWM_FREQ * SIMULATION_TIME * SVPWM_STEPS / 2;
 
 SPEED_CONTROL_MODE = 0;
 CURRENT_CONTROL_MODE = 1;
@@ -18,9 +18,9 @@ simulation_mode = SPEED_CONTROL_MODE;
 %============%
 
 %3-phase currents
-i_a = zeros(1, ITERATION_TIMES);
-i_b = zeros(1, ITERATION_TIMES);
-i_c = zeros(1, ITERATION_TIMES);
+I_a = zeros(1, ITERATION_TIMES);
+I_b = zeros(1, ITERATION_TIMES);
+I_c = zeros(1, ITERATION_TIMES);
 I_a_des = zeros(1, ITERATION_TIMES);
 I_b_des = zeros(1, ITERATION_TIMES);
 I_c_des = zeros(1, ITERATION_TIMES);
@@ -42,9 +42,9 @@ f_b = zeros(1, ITERATION_TIMES);
 f_c = zeros(1, ITERATION_TIMES);
 
 %3-phase control voltages
-v_a = zeros(1, 2*ITERATION_TIMES);
-v_b = zeros(1, 2*ITERATION_TIMES);
-v_c = zeros(1, 2*ITERATION_TIMES);
+V_a = zeros(1, 2*ITERATION_TIMES);
+V_b = zeros(1, 2*ITERATION_TIMES);
+V_c = zeros(1, 2*ITERATION_TIMES);
 V_a_d = zeros(1, ITERATION_TIMES);
 V_b_d = zeros(1, ITERATION_TIMES);
 V_c_d = zeros(1, ITERATION_TIMES);
@@ -97,10 +97,10 @@ V_abc_d = [0; 0; 0];
 %==========================%
 % speed control parameters %
 %==========================%
-RPM_d = 0;
-Kp_speed = 0.1;
-Ki_speed = 0.003;
-e_RPM = 0;
+RPM_d = 0;        %desired rotation speed [RPM]
+Kp_speed = 0.12;  %speed Kp gain
+Ki_speed = 0.003; %speed Ki gain
+e_RPM = 0;        %speed error
 e_RPM_last = 0;
 Iq_d_last = 0;
 
@@ -113,20 +113,20 @@ Iq_d_last = 0;
 %can provide before tunning the speed control loop.
 I_dq_max = 1.7; %maximum desired current
 
-Id_d = 0;  %desired Id current
+Id_d = 0;    %desired Id current
 Iq_d = -1.7; %desired Iq current
 %
 Kp_Idq = 20; %Kp gain of the Id and Iq controller
-Ki_Idq = 0; %Ki gain of the Id and Iq controller
+Ki_Idq = 0;  %Ki gain of the Id and Iq controller
 %
-e_Id = 0;
+e_Id = 0;    %error of the Id current
 e_Id_last = 0;
 %
-e_Iq = 0;
+e_Iq = 0;    %error of the Iq current
 e_Iq_last = 0;
 %
-V_d = 0;
-V_q = 0;
+V_d = 0;     %control output: Vd voltage
+V_q = 0;     %control output: Vq voltage
 %
 V_d_last = 0;
 V_q_last = 0;
@@ -158,7 +158,7 @@ while i <= ITERATION_TIMES
             
             %fixed speed target
             if 0
-                RPM_d = 55;
+                RPM_d = 50;
             end
             
             %step impulse
@@ -173,7 +173,7 @@ while i <= ITERATION_TIMES
             
             %linear speed trajectory planning
             if 0
-                traj_slope = 10;
+                traj_slope = 2.5;
                 traj_x = (i/7) * DT;
                 RPM_d = traj_slope * traj_x;
             end
@@ -196,7 +196,7 @@ while i <= ITERATION_TIMES
                 
                 %incremental PI control
                 Iq_d = Iq_d_last + (Kp_speed * (e_RPM - e_RPM_last)) + (Ki_speed * e_RPM);
-                %Iq_d = Iq_d * -1; %negative current for positive rotation angle, and vice versa
+                Iq_d = bldc.bound(Iq_d, -I_dq_max, I_dq_max);
                 
                 %save for next iteration
                 e_RPM_last = e_RPM;
@@ -255,7 +255,7 @@ while i <= ITERATION_TIMES
             %===========================================================%
             % generate SVPWM signal to track the reference space vector %
             %===========================================================%
-            bldc = bldc.generate_SVPWM_signal(Vref, SV_angle);
+            bldc = bldc.generate_SVPWM_signal(V_ref, SV_angle);
             
             %=========================================================%
             % prepare control signal for updating the dynamics system %
@@ -323,9 +323,9 @@ while i <= ITERATION_TIMES
     pwm_time_arr(2*i) = time_arr(i);   %time for expressing the control voltage from t to t+1
     
     %state variables
-    i_a(i) = bldc.x(1); %current of phase A
-    i_b(i) = bldc.x(2); %current of phase B
-    i_c(i) = bldc.x(3); %current of phase C
+    I_a(i) = bldc.x(1); %current of phase A
+    I_b(i) = bldc.x(2); %current of phase B
+    I_c(i) = bldc.x(3); %current of phase C
     omega_m(i) = bldc.x(4); %motor speed
     theta_r(i) = bldc.x(5); %rotor position
     
@@ -335,15 +335,15 @@ while i <= ITERATION_TIMES
     
     %control voltage from t-1 to t
     if i > 1
-        v_a(2*i-1) = v_a(2*(i-1));
-        v_b(2*i-1) = v_b(2*(i-1));
-        v_c(2*i-1) = v_c(2*(i-1));
+        V_a(2*i-1) = V_a(2*(i-1));
+        V_b(2*i-1) = V_b(2*(i-1));
+        V_c(2*i-1) = V_c(2*(i-1));
     end
     
     %control voltage from t to t+1
-    v_a(2*i) = bldc.u(1);
-    v_b(2*i) = bldc.u(2);
-    v_c(2*i) = bldc.u(3);
+    V_a(2*i) = bldc.u(1);
+    V_b(2*i) = bldc.u(2);
+    V_c(2*i) = bldc.u(3);
     
     %desired control voltage
     V_a_d(i) = V_abc_d(1);
@@ -387,21 +387,21 @@ end
 %3-phase back EMF
 figure('Name', '3 phase currents');
 subplot (3, 1, 1);
-plot(time_arr(:), i_a(:), time_arr(:), I_a_des(:));
+plot(time_arr(:), I_a(:), time_arr(:), I_a_des(:));
 legend('Actual current', 'Desired current');
 xlim([0 time_arr(end)]);
 ylim([-5 5]);
 xlabel('time [s]');
 ylabel('i_a');
 subplot (3, 1, 2);
-plot(time_arr(:), i_b(:), time_arr(:), I_b_des(:));
+plot(time_arr(:), I_b(:), time_arr(:), I_b_des(:));
 legend('Actual current', 'Desired current');
 xlim([0 time_arr(end)]);
 ylim([-5 5]);
 xlabel('time [s]');
 ylabel('i_b');
 subplot (3, 1, 3);
-plot(time_arr(:), i_c(:), time_arr(:), I_c_des(:));
+plot(time_arr(:), I_c(:), time_arr(:), I_c_des(:));
 legend('Actual current', 'Desired current');
 xlim([0 time_arr(end)]);
 ylim([-5 5]);
@@ -411,26 +411,26 @@ ylabel('i_c');
 %control voltage
 figure('Name', 'Control votage');
 subplot (3, 1, 1);
-plot(pwm_time_arr(:), v_a(:), time_arr(:), V_a_d(:));
+plot(pwm_time_arr(:), V_a(:), time_arr(:), V_a_d(:));
 legend('Actual voltage', 'Desired voltage');
 xlim([0 time_arr(end)]);
 ylim([-110 110]);
 xlabel('time [s]');
-ylabel('v_a');
+ylabel('V_a');
 subplot (3, 1, 2);
-plot(pwm_time_arr(:), v_b(:), time_arr(:), V_b_d(:));
+plot(pwm_time_arr(:), V_b(:), time_arr(:), V_b_d(:));
 legend('Actual voltage', 'Desired voltage');
 xlim([0 time_arr(end)]);
 ylim([-110 110]);
 xlabel('time [s]');
-ylabel('v_b');
+ylabel('V_b');
 subplot (3, 1, 3);
-plot(pwm_time_arr(:), v_c(:), time_arr(:), V_c_d(:));
+plot(pwm_time_arr(:), V_c(:), time_arr(:), V_c_d(:));
 legend('Actual voltage', 'Desired voltage');
 xlim([0 time_arr(end)]);
 ylim([-110 110]);
 xlabel('time [s]');
-ylabel('v_c');
+ylabel('V_c');
 
 %control voltage
 figure('Name', 'V_alpha V_beta V_gamma');
