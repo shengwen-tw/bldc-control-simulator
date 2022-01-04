@@ -80,7 +80,18 @@ classdef bldc_dynamics
             end
         end
         
-        function ret_obj = new_dynamics(obj)                        
+        function ret_obj = new_dynamics(obj)
+            %calculate normalized back-emf voltage
+            obj.f_a = obj.back_emf_fa(obj.x(5));
+            obj.f_b = obj.back_emf_fb(obj.x(5));
+            obj.f_c = obj.back_emf_fc(obj.x(5));
+            
+            %calculate back-emf voltage
+            omega_times_lambda = obj.x(4) * obj.lambda_m;
+            obj.e(1) = omega_times_lambda * obj.f_a;
+            obj.e(2) = omega_times_lambda * obj.f_b;
+            obj.e(3) = omega_times_lambda * obj.f_c;
+            
             %update the time-variant entry of the matrix A
             lambda_div_J = obj.lambda_m / obj.J;
             obj.A(4, 1) = lambda_div_J * obj.f_a;
@@ -102,17 +113,7 @@ classdef bldc_dynamics
                       f_now(5) + (f_dot(5) * dt)];
         end
         
-        function ret_obj = update(obj, dt)
-            %update the back EMF according to the motor angle
-            obj.f_a = obj.back_emf_fa(obj.x(5));
-            obj.f_b = obj.back_emf_fb(obj.x(5));
-            obj.f_c = obj.back_emf_fc(obj.x(5));
-            %            
-            omega_times_lambda = obj.x(4) * obj.lambda_m;
-            obj.e(1) = omega_times_lambda * obj.f_a;
-            obj.e(2) = omega_times_lambda * obj.f_b;
-            obj.e(3) = omega_times_lambda * obj.f_c;
-            
+        function ret_obj = update(obj, dt)            
             obj = obj.new_dynamics();
             obj.x = obj.integrator(obj.x, obj.x_dot, dt);
                         
