@@ -98,8 +98,8 @@ V_abc_d = [0; 0; 0];
 % speed control parameters %
 %==========================%
 RPM_d = 0;
-Kp_speed = 0.08;
-Ki_speed = 0.0003;
+Kp_speed = 0.1;
+Ki_speed = 0.003;
 e_RPM = 0;
 e_RPM_last = 0;
 Iq_d_last = 0;
@@ -158,16 +158,16 @@ while i <= ITERATION_TIMES
             
             %fixed speed target
             if 0
-                RPM_d = 25;
+                RPM_d = 55;
             end
             
             %step impulse
             if 0
                 time = (i/7) * DT;
                 if time < (SIMULATION_TIME / 2)
-                    RPM_d = 0;
+                    RPM_d = 1;
                 else
-                    RPM_d = 50;
+                    RPM_d = 25;
                 end
             end
             
