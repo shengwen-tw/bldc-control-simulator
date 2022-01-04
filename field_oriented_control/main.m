@@ -13,11 +13,64 @@ SPEED_CONTROL_MODE = 0;
 CURRENT_CONTROL_MODE = 1;
 simulation_mode = SPEED_CONTROL_MODE;
 
+%==============================%
+% Process model and controller %
+%==============================%
+
+%process model
+bldc = bldc_dynamics;
+bldc = bldc.init(PWM_FREQ);
+bldc.u(4) = 0; %no external torque
+
+%SVPWM variables
+SVPWM_state = 1;
+V_ref = 0;
+SV_angle = 0;
+
+%==========================%
+% speed control parameters %
+%==========================%
+RPM_d = 0;        %desired rotation speed [RPM]
+Kp_speed = 0.12;  %speed Kp gain
+Ki_speed = 0.003; %speed Ki gain
+e_RPM = 0;        %speed error
+e_RPM_last = 0;   %speed error of the last time interval
+Iq_d_last = 0;    %Iq control ouput of the last time interval
+
+%===========================%
+% Id, Iq control parameters %
+%===========================%
+
+%note: the maximum output current has its physical limitation.
+%therefore, it is required to know the maximum current the system
+%can provide before tunning the speed control loop.
+I_dq_max = 1.7; %maximum desired current
+
+Id_d = 0;      %desired Id current
+Iq_d = -1.7;   %desired Iq current (given by speed controller)
+%
+Kp_Idq = 20;   %Kp gain of the Id and Iq controller
+Ki_Idq = 0;    %Ki gain of the Id and Iq controller
+%
+e_Id = 0;      %error of the Id current
+e_Id_last = 0; %Id error of the last time interval
+%
+e_Iq = 0;      %error of the Iq current
+e_Iq_last = 0; %Iq error of the last time interval
+%
+V_d = 0;       %Vd control voltage
+V_q = 0;       %Vq control voltage
+%
+V_d_last = 0;  %Vd control voltage of the last time interval
+V_q_last = 0;  %Vq control voltage of the last time interval
+%
+V_abc_d = [0; 0; 0]; %desired voltage in abc coordinate
+
 %============%
 % Plot datas %
 %============%
 
-%3-phase currents
+%3 phase currents
 I_a = zeros(1, ITERATION_TIMES);
 I_b = zeros(1, ITERATION_TIMES);
 I_c = zeros(1, ITERATION_TIMES);
@@ -41,7 +94,7 @@ f_a = zeros(1, ITERATION_TIMES);
 f_b = zeros(1, ITERATION_TIMES);
 f_c = zeros(1, ITERATION_TIMES);
 
-%3-phase control voltages
+%3 phase control voltages
 V_a = zeros(1, 2*ITERATION_TIMES);
 V_b = zeros(1, 2*ITERATION_TIMES);
 V_c = zeros(1, 2*ITERATION_TIMES);
@@ -78,58 +131,6 @@ I_gamma_d = zeros(1, ITERATION_TIMES);
 I_d = zeros(1, ITERATION_TIMES);
 I_q = zeros(1, ITERATION_TIMES);
 I_z = zeros(1, ITERATION_TIMES);
-
-%==============================%
-% Process model and controller %
-%==============================%
-
-%process model
-bldc = bldc_dynamics;
-bldc = bldc.init(PWM_FREQ);
-bldc.u(4) = 0; %no external torque
-
-SVPWM_state = 1;
-V_ref = 0;
-SV_angle = 0;
-
-V_abc_d = [0; 0; 0];
-
-%==========================%
-% speed control parameters %
-%==========================%
-RPM_d = 0;        %desired rotation speed [RPM]
-Kp_speed = 0.12;  %speed Kp gain
-Ki_speed = 0.003; %speed Ki gain
-e_RPM = 0;        %speed error
-e_RPM_last = 0;
-Iq_d_last = 0;
-
-%===========================%
-% Id, Iq control parameters %
-%===========================%
-
-%note: the maximum output current has its physical limitation.
-%therefore, it is required to know the maximum current the system
-%can provide before tunning the speed control loop.
-I_dq_max = 1.7; %maximum desired current
-
-Id_d = 0;    %desired Id current
-Iq_d = -1.7; %desired Iq current
-%
-Kp_Idq = 20; %Kp gain of the Id and Iq controller
-Ki_Idq = 0;  %Ki gain of the Id and Iq controller
-%
-e_Id = 0;    %error of the Id current
-e_Id_last = 0;
-%
-e_Iq = 0;    %error of the Iq current
-e_Iq_last = 0;
-%
-V_d = 0;     %control output: Vd voltage
-V_q = 0;     %control output: Vq voltage
-%
-V_d_last = 0;
-V_q_last = 0;
 
 %======================%
 % Simulation main loop %

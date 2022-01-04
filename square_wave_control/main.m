@@ -1,12 +1,42 @@
 close all;
 
+%===================%
+% Simulator options %
+%===================%
+
 dt = 0.001;           %simulation period
 SIMULATION_TIME = 10; %[s], total time of the simulation
 ITERATION_TIMES = SIMULATION_TIME * (1/dt);
 
+%==============================%
+% Process model and controller %
+%==============================%
+
 bldc = bldc_dynamics;
 bldc = bldc.init(dt);
 bldc.u(4) = 0; %no external torque
+
+%===========================%
+%PI speed control paramters %
+%===========================%
+
+w_d = 0;          %desired motor speed
+e_w = 0;          %error of the motor speed
+T_d = 0;          %control output (torque) of the speed controller
+T_d_arr_last = 0; %desired torque of last time interval
+e_w_last = 0;     %speed error of last time interval
+Kp = 0.15;        %Kp gain of the speed controller
+Ki = 0.001;       %Ki gain of the speed controller
+
+%===============================%
+% hysteresis control parameters %
+%===============================%
+
+delta_I = 0.001; %hysteresis band of the current
+
+%============%
+% Plot datas %
+%============%
 
 %time sequence
 time_arr = zeros(1, ITERATION_TIMES);
@@ -33,33 +63,30 @@ f_b = zeros(1, ITERATION_TIMES);
 f_c = zeros(1, ITERATION_TIMES);
 
 %3-phase control voltages
-V_a = zeros(1, ITERATION_TIMES);
-V_b = zeros(1, ITERATION_TIMES);
-V_c = zeros(1, ITERATION_TIMES);
+V_a = zeros(1, ITERATION_TIMES); %control voltage of phase A
+V_b = zeros(1, ITERATION_TIMES); %control voltage of phase B
+V_c = zeros(1, ITERATION_TIMES); %control voltage of phase C
 
-%PI speed control
-w_d = zeros(1, ITERATION_TIMES); %desited motor speed
-T_d = zeros(1, ITERATION_TIMES); %desired torque
-T_d_last = 0; %desired torque of last time interval
-e_w_last = 0; %speed error of last time interval
-Kp = 0.15;    %P gain
-Ki = 0.001;  %I gain
+w_d_arr = zeros(1, ITERATION_TIMES); %desited motor speed
+T_d_arr = zeros(1, ITERATION_TIMES); %desired torque
 
-%ysteresis control parameters
-delta_I = 0.001;                   %hysteresis band
 I_d = zeros(1, ITERATION_TIMES);   %desited current
 I_a_d = zeros(1, ITERATION_TIMES); %desired i_a current
 I_b_d = zeros(1, ITERATION_TIMES); %desired i_b current
 I_c_d = zeros(1, ITERATION_TIMES); %desired i_c current
 
 %sensing of the rotor position sector
-hall_a = zeros(1, ITERATION_TIMES);
-hall_b = zeros(1, ITERATION_TIMES);
-hall_c = zeros(1, ITERATION_TIMES);
-theta_sense = zeros(1, ITERATION_TIMES);
+hall_a = zeros(1, ITERATION_TIMES); %hall signal of phase A
+hall_b = zeros(1, ITERATION_TIMES); %hall signal of phase B
+hall_c = zeros(1, ITERATION_TIMES); %hall signal of phase C
+theta_sense = zeros(1, ITERATION_TIMES); %estimated rotor angle
 
 %motor torque
 torque = zeros(1, ITERATION_TIMES);
+
+%======================%
+% Simulation main loop %
+%======================%
 
 for i = 1: ITERATION_TIMES
     %===========================%
@@ -72,16 +99,16 @@ for i = 1: ITERATION_TIMES
     
     %fixed speed target
     if 0
-        w_d(i) = 5;
+        w_d = 5;
     end
     
     %step impulse
     if 0
         time = i * dt;
         if time < (ITERATION_TIMES * dt / 2)
-            w_d(i) = 0;
+            w_d = 0;
         else
-            w_d(i) = 50;
+            w_d = 50;
         end
     end
     
@@ -89,18 +116,18 @@ for i = 1: ITERATION_TIMES
     if 0
         traj_slope = 10;
         traj_x = i * dt;
-        w_d(i) = traj_slope * traj_x; %[RPM]
+        w_d = traj_slope * traj_x; %[RPM]
     end
     
     %nonlinear speed trajectory planning
     if 1
         traj_coeff = 150;
         traj_speed = 5;
-        w_d(i) = traj_coeff * abs(sin(traj_speed * i * dt));
+        w_d = traj_coeff * abs(sin(traj_speed * i * dt));
     end
     
     %convert the speed unit from [RPM] to [rad/s]
-    w_d(i) = w_d(i) * 0.10472;
+    w_d = w_d * 0.10472;
     
     %=====================================================%
     % Rotor position sensing with back EMF sensing method %
@@ -147,17 +174,17 @@ for i = 1: ITERATION_TIMES
     %==================%
     
     %speed error
-    e_w = w_d(i) - bldc.x(4);
+    e_w = w_d - bldc.x(4);
    
     %incremental PI control
-    T_d(i) = T_d_last + (Kp * (e_w - e_w_last)) + (Ki * e_w);
+    T_d = T_d_arr_last + (Kp * (e_w - e_w_last)) + (Ki * e_w);
     
     %save for next iteration
     e_w_last = e_w;
-    T_d_last = T_d(i);
+    T_d_arr_last = T_d;
     
     %convert the control output from torque to current
-    I_d(i) = T_d(i) / bldc.Kt;
+    I_d(i) = T_d / bldc.Kt;
            
     %=============================%
     % 6-steps phase control logic %
@@ -287,6 +314,12 @@ for i = 1: ITERATION_TIMES
     
     %motor torque
     torque(i) = bldc.torque;
+    
+    %desired motor speed
+    w_d_arr(i) = w_d;
+    
+    %control output (torque) of the speed controller
+    T_d_arr(i) = T_d;
 end
 
 figure('Name', 'Desired current');
@@ -294,7 +327,7 @@ plot(time_arr(:), I_d(:));
 xlim([0 time_arr(end)]);
 ylim([-20 50]);
 xlabel('time [s]');
-ylabel('i_d');
+ylabel('I_d');
 
 %3-phase back EMF
 figure('Name', '3 phase currents');
@@ -342,7 +375,7 @@ xlabel('time [s]');
 ylabel('V_c');
 
 figure('Name', 'Motor speed');
-plot(time_arr(:), 9.5493 .* omega_m(:), time_arr(:), 9.5493 .* w_d(:));
+plot(time_arr(:), 9.5493 .* omega_m(:), time_arr(:), 9.5493 .* w_d_arr(:));
 legend('Actual speed', 'Desired speed');
 xlim([0 time_arr(end)]);
 ylim([-20 200]);
@@ -421,7 +454,7 @@ xlabel('time [s]');
 ylabel('Phase C');
 
 figure('Name', 'Motor torque');
-plot(time_arr(:), torque(:), time_arr(:), T_d);
+plot(time_arr(:), torque(:), time_arr(:), T_d_arr);
 legend('Actual torque', 'Desired torque');
 xlim([0 time_arr(end)]);
 ylim([-0.2, 0.5]);
