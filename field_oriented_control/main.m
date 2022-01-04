@@ -306,7 +306,9 @@ while i <= ITERATION_TIMES
     %disp(SVPWM_state);
     %disp(dt);
 
-    %update the BLDC dynamics
+    %==========================%
+    % update the BLDC dynamics %
+    %==========================%
     bldc = bldc.update(dt);
        
     %============%
@@ -392,21 +394,21 @@ legend('Actual current', 'Desired current');
 xlim([0 time_arr(end)]);
 ylim([-5 5]);
 xlabel('time [s]');
-ylabel('i_a');
+ylabel('I_a');
 subplot (3, 1, 2);
 plot(time_arr(:), I_b(:), time_arr(:), I_b_des(:));
 legend('Actual current', 'Desired current');
 xlim([0 time_arr(end)]);
 ylim([-5 5]);
 xlabel('time [s]');
-ylabel('i_b');
+ylabel('I_b');
 subplot (3, 1, 3);
 plot(time_arr(:), I_c(:), time_arr(:), I_c_des(:));
 legend('Actual current', 'Desired current');
 xlim([0 time_arr(end)]);
 ylim([-5 5]);
 xlabel('time [s]');
-ylabel('i_c');
+ylabel('I_c');
 
 %control voltage
 figure('Name', 'Control votage');
