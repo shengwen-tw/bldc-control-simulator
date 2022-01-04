@@ -4,7 +4,7 @@ Simulation of different BLDC control algorithms written in MATLAB.
 
 ## Currently implemented algorithms
 
-1. Square wave commutation
+1. Square-Wave Commutation Control
 * PI speed control
 * Hysteresis current control
 * Trapezoidal back EMF model
