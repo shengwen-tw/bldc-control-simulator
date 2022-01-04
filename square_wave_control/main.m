@@ -1,15 +1,20 @@
 close all;
 
-dt = 0.001;
-ITERATION_TIMES = 10000;
+dt = 0.001;           %simulation period
+SIMULATION_TIME = 10; %[s], total time of the simulation
+ITERATION_TIMES = SIMULATION_TIME * (1/dt);
 
 bldc = bldc_dynamics;
 bldc = bldc.init(dt);
+bldc.u(4) = 0; %no external torque
+
+%time sequence
+time_arr = zeros(1, ITERATION_TIMES);
 
 %3-phase currents
-i_a = zeros(1, ITERATION_TIMES);
-i_b = zeros(1, ITERATION_TIMES);
-i_c = zeros(1, ITERATION_TIMES);
+I_a = zeros(1, ITERATION_TIMES);
+I_b = zeros(1, ITERATION_TIMES);
+I_c = zeros(1, ITERATION_TIMES);
 
 %motor speed
 omega_m = zeros(1, ITERATION_TIMES);
@@ -28,12 +33,9 @@ f_b = zeros(1, ITERATION_TIMES);
 f_c = zeros(1, ITERATION_TIMES);
 
 %3-phase control voltages
-v_a = zeros(1, ITERATION_TIMES);
-v_b = zeros(1, ITERATION_TIMES);
-v_c = zeros(1, ITERATION_TIMES);
-
-%time sequence
-time_arr = zeros(1, ITERATION_TIMES);
+V_a = zeros(1, ITERATION_TIMES);
+V_b = zeros(1, ITERATION_TIMES);
+V_c = zeros(1, ITERATION_TIMES);
 
 %PI speed control
 w_d = zeros(1, ITERATION_TIMES); %desited motor speed
@@ -44,39 +46,27 @@ Kp = 0.15;    %P gain
 Ki = 0.001;  %I gain
 
 %ysteresis control parameters
-delta_i = 0.001;                   %hysteresis band
-i_d = zeros(1, ITERATION_TIMES);   %desited current
-i_a_d = zeros(1, ITERATION_TIMES); %desired i_a current
-i_b_d = zeros(1, ITERATION_TIMES); %desired i_b current
-i_c_d = zeros(1, ITERATION_TIMES); %desired i_c current
+delta_I = 0.001;                   %hysteresis band
+I_d = zeros(1, ITERATION_TIMES);   %desited current
+I_a_d = zeros(1, ITERATION_TIMES); %desired i_a current
+I_b_d = zeros(1, ITERATION_TIMES); %desired i_b current
+I_c_d = zeros(1, ITERATION_TIMES); %desired i_c current
 
-%MOSFET signal
-S1 = 0;
-S2 = 0;
-S3 = 0;
-S4 = 0;
-S5 = 0;
-S6 = 0;
-
-%rotor position sensing
-phase_a = zeros(1, ITERATION_TIMES);
-phase_b = zeros(1, ITERATION_TIMES);
-phase_c = zeros(1, ITERATION_TIMES);
+%sensing of the rotor position sector
+hall_a = zeros(1, ITERATION_TIMES);
+hall_b = zeros(1, ITERATION_TIMES);
+hall_c = zeros(1, ITERATION_TIMES);
 theta_sense = zeros(1, ITERATION_TIMES);
 
 %motor torque
 torque = zeros(1, ITERATION_TIMES);
-w_m_last = 0;
 
 for i = 1: ITERATION_TIMES
-    bldc = bldc.update();
-
-    bldc.u(4) = 0; %no external torque
-       
     %===========================%
     % Speed trajectory planning %
     %===========================%
-    %for debugging:
+
+    %current control (speed open-loop)
     %i_d(i) = i * dt * 0.25;
     %i_d(i) = 1 * sin(2 * i * dt);
     
@@ -113,200 +103,177 @@ for i = 1: ITERATION_TIMES
     w_d(i) = w_d(i) * 0.10472;
     
     %=====================================================%
-    % Rotor position sensing with back-EMF sensing method %
+    % Rotor position sensing with back EMF sensing method %
     %=====================================================%
     
-    %phase a
+    %Hall signal of phase A
     if bldc.e(1) >= 0
-        phase_a(i) = 1;
+        hall_a(i) = 1;
     else
-        phase_a(i) = 0;
+        hall_a(i) = 0;
     end
     
-    %phase b
+    %Hall signal of phase B
     if bldc.e(2) >= 0
-        phase_b(i) = 1;
+        hall_b(i) = 1;
     else
-        phase_b(i) = 0;
+        hall_b(i) = 0;
     end
     
-    %phase c
+    %Hall signal of phase C
     if bldc.e(3) >= 0
-        phase_c(i) = 1;
+        hall_c(i) = 1;
     else
-        phase_c(i) = 0;
+        hall_c(i) = 0;
     end
     
-    %decode the phase signal
-    if isequal([phase_a(i) phase_b(i) phase_c(i)], [1 0 1])
+    %decode the hall signal
+    if isequal([hall_a(i) hall_b(i) hall_c(i)], [1 0 1])
         theta_sense(i) = 0;
-    elseif isequal([phase_a(i) phase_b(i) phase_c(i)], [1 0 0])
+    elseif isequal([hall_a(i) hall_b(i) hall_c(i)], [1 0 0])
         theta_sense(i) = 60;
-    elseif isequal([phase_a(i) phase_b(i) phase_c(i)], [1 1 0])
+    elseif isequal([hall_a(i) hall_b(i) hall_c(i)], [1 1 0])
         theta_sense(i) = 120;
-    elseif isequal([phase_a(i) phase_b(i) phase_c(i)], [0 1 0])
+    elseif isequal([hall_a(i) hall_b(i) hall_c(i)], [0 1 0])
         theta_sense(i) = 180;
-    elseif isequal([phase_a(i) phase_b(i) phase_c(i)], [0 1 1])
+    elseif isequal([hall_a(i) hall_b(i) hall_c(i)], [0 1 1])
         theta_sense(i) = 240;
-    elseif isequal([phase_a(i) phase_b(i) phase_c(i)], [0 0 1])
+    elseif isequal([hall_a(i) hall_b(i) hall_c(i)], [0 0 1])
         theta_sense(i) = 300;
     end
     
     %==================%
     % PI speed control %
     %==================%
-    %Incremental PI control
+    
+    %speed error
     e_w = w_d(i) - bldc.x(4);
+   
+    %incremental PI control
     T_d(i) = T_d_last + (Kp * (e_w - e_w_last)) + (Ki * e_w);
+    
+    %save for next iteration
     e_w_last = e_w;
     T_d_last = T_d(i);
-    i_d(i) = T_d(i) / bldc.Kt;
+    
+    %convert the control output from torque to current
+    I_d(i) = T_d(i) / bldc.Kt;
            
     %=============================%
     % 6-steps phase control logic %
     %=============================%
+    
+    %calculate desired current for phase A, B and C
     if(bldc.x(5) >= deg2rad(0) && bldc.x(5) < deg2rad(60))
         %disp('motor position between 0-60 degree')
-        %disp([phase_a(i) phase_b(i) phase_c(i)])
-        i_a_d(i) = +i_d(i);
-        i_b_d(i) = -i_d(i);
-        i_c_d(i) = 0;
+        %disp([hall_a(i) hall_b(i) hall_c(i)])
+        I_a_d(i) = +I_d(i);
+        I_b_d(i) = -I_d(i);
+        I_c_d(i) = 0;
     elseif(bldc.x(5) >= deg2rad(60) && bldc.x(5) < deg2rad(120))
         %disp('motor position between 60-120 degree')
-        %disp([phase_a(i) phase_b(i) phase_c(i)])
-        i_a_d(i) = +i_d(i);
-        i_b_d(i) = 0;
-        i_c_d(i) = -i_d(i);
+        %disp([hall_a(i) hall_b(i) hall_c(i)])
+        I_a_d(i) = +I_d(i);
+        I_b_d(i) = 0;
+        I_c_d(i) = -I_d(i);
     elseif(bldc.x(5) >= deg2rad(120) && bldc.x(5) < deg2rad(180))
         %disp('motor position between 120-180 degree')
-        %disp([phase_a(i) phase_b(i) phase_c(i)])
-        i_a_d(i) = 0;
-        i_b_d(i) = +i_d(i);
-        i_c_d(i) = -i_d(i);
+        %disp([hall_a(i) hall_b(i) hall_c(i)])
+        I_a_d(i) = 0;
+        I_b_d(i) = +I_d(i);
+        I_c_d(i) = -I_d(i);
     elseif(bldc.x(5) >= deg2rad(180) && bldc.x(5) < deg2rad(240))
         %disp('motor position between 180-240 degree')
-        %disp([phase_a(i) phase_b(i) phase_c(i)])
-        i_a_d(i) = -i_d(i);
-        i_b_d(i) = +i_d(i);
-        i_c_d(i) = 0;
+        %disp([hall_a(i) hall_b(i) hall_c(i)])
+        I_a_d(i) = -I_d(i);
+        I_b_d(i) = +I_d(i);
+        I_c_d(i) = 0;
     elseif(bldc.x(5) >= deg2rad(240) && bldc.x(5) < deg2rad(300))
         %disp('motor position between 240-300 degree')
-        %disp([phase_a(i) phase_b(i) phase_c(i)])
-        i_a_d(i) = -i_d(i);
-        i_b_d(i) = 0;
-        i_c_d(i) = +i_d(i);
+        %disp([hall_a(i) hall_b(i) hall_c(i)])
+        I_a_d(i) = -I_d(i);
+        I_b_d(i) = 0;
+        I_c_d(i) = +I_d(i);
     elseif(bldc.x(5) >= deg2rad(300) && bldc.x(5) < deg2rad(360))
         %disp('300-360')
-        %disp([phase_a(i) phase_b(i) phase_c(i)])
-        i_a_d(i) = 0;
-        i_b_d(i) = -i_d(i);
-        i_c_d(i) = +i_d(i);
+        %disp([hall_a(i) hall_b(i) hall_c(i)])
+        I_a_d(i) = 0;
+        I_b_d(i) = -I_d(i);
+        I_c_d(i) = +I_d(i);
     end
 
     %============================%
     % hysteresis current control %
     %============================%
        
-    %phase a control
-    if i_a_d >= 0
-        if bldc.x(1) <= (i_a_d(i) - delta_i)
-            S1 = 1;
-            S2 = 0;
-            bldc.u(1) = bldc.v_bldc / 2;
-        elseif bldc.x(1) >= (i_a_d(i) + delta_i)
-            S1 = 0;
-            S2 = 1;
-            bldc.u(1) = -bldc.v_bldc / 2;
+    %hysteresis control for phase A
+    if I_a_d >= 0
+        if bldc.x(1) <= (I_a_d(i) - delta_I)
+            bldc.u(1) = bldc.v_bldc / 2;  %S1 = 1, S2 = 0
+        elseif bldc.x(1) >= (I_a_d(i) + delta_I)
+            bldc.u(1) = -bldc.v_bldc / 2; %S1 = 0, S2 = 1
         end
     else
-        if bldc.x(1) >= (i_a_d(i) + delta_i)
-            S1 = 0;
-            S2 = 1;
-            bldc.u(1) = -bldc.v_bldc / 2;
-        elseif bldc.x(1) <= (i_a_d(i) - delta_i)
-            S1 = 1;
-            S2 = 0;
-            bldc.u(1) = bldc.v_bldc / 2;
+        if bldc.x(1) >= (I_a_d(i) + delta_I)
+            bldc.u(1) = -bldc.v_bldc / 2; %S1 = 0, S2 = 1
+        elseif bldc.x(1) <= (I_a_d(i) - delta_I)
+            bldc.u(1) = bldc.v_bldc / 2;  %S1 = 1, S2 = 0
         end
     end
     
-    %phase b control
-    if i_b_d >= 0
-        if bldc.x(2) <= (i_b_d(i) - delta_i)
-            S3 = 1;
-            S4 = 0;
-            bldc.u(2) = bldc.v_bldc / 2;
-        elseif bldc.x(2) >= (i_b_d(i) + delta_i)
-            S3 = 0;
-            S4 = 1;
-            bldc.u(2) = -bldc.v_bldc / 2;
+    %hysteresis control for phase B
+    if I_b_d >= 0
+        if bldc.x(2) <= (I_b_d(i) - delta_I)
+            bldc.u(2) = bldc.v_bldc / 2;  %S3 = 1, S4 = 0
+        elseif bldc.x(2) >= (I_b_d(i) + delta_I)
+            bldc.u(2) = -bldc.v_bldc / 2; %S3 = 0, S4 = 1
         end
     else
-        if bldc.x(2) >= (i_b_d(i) + delta_i)
-            S3 = 0;
-            S4 = 1;
-            bldc.u(2) = -bldc.v_bldc / 2;
-        elseif bldc.x(2) <= (i_b_d(i) - delta_i)
-            S3 = 1;
-            S4 = 0;
-            bldc.u(2) = bldc.v_bldc / 2;
+        if bldc.x(2) >= (I_b_d(i) + delta_I)
+            bldc.u(2) = -bldc.v_bldc / 2; %S3 = 0, S4 = 1
+        elseif bldc.x(2) <= (I_b_d(i) - delta_I)
+            bldc.u(2) = bldc.v_bldc / 2;  %S3 = 1, S4 = 0
         end
     end
  
-    %phase c control
-    if i_c_d >= 0
-        if bldc.x(3) <= (i_c_d(i) - delta_i)
-            S5 = 1;
-            S6 = 0;
-            bldc.u(3) = bldc.v_bldc / 2;
-        elseif bldc.x(3) >= (i_c_d(i) + delta_i)
-            S5 = 0;
-            S6 = 1;
-            bldc.u(3) = -bldc.v_bldc / 2;
+    %hysteresis control for phase C
+    if I_c_d >= 0
+        if bldc.x(3) <= (I_c_d(i) - delta_I)
+            bldc.u(3) = bldc.v_bldc / 2;  %S5 = 1, S6 = 0
+        elseif bldc.x(3) >= (I_c_d(i) + delta_I)
+            bldc.u(3) = -bldc.v_bldc / 2; %S5 = 0, S6 = 1
         end
     else
-        if bldc.x(3) >= (i_c_d(i) + delta_i)
-            S5 = 0;
-            S6 = 1;
-            bldc.u(3) = -bldc.v_bldc / 2;
-        elseif bldc.x(3) <= (i_c_d(i) - delta_i)
-            S5 = 1;
-            S6 = 0;
-            bldc.u(3) = bldc.v_bldc / 2;
+        if bldc.x(3) >= (I_c_d(i) + delta_I)
+            bldc.u(3) = -bldc.v_bldc / 2; %S5 = 0, S6 = 1;
+        elseif bldc.x(3) <= (I_c_d(i) - delta_I)
+            bldc.u(3) = bldc.v_bldc / 2; %S5 = 1, S6 = 0;
         end
     end
     
-    if(abs(i_a_d(i)) < 0.001)
-        S1 = 0;
-        S2 = 0;
-    end
+    %==========================%
+    % update the BLDC dynamics %
+    %==========================%
+    bldc = bldc.update();
     
-    if(abs(i_b_d(i)) < 0.001)
-        S3 = 0;
-        S4 = 0;
-    end
+    %============%
+    % Plot datas %
+    %============%
     
-    if(abs(i_c_d(i)) < 0.001)
-        S5 = 0;
-        S6 = 0;
-    end
-    
-    bldc = bldc.set_mosfet_gate(S1, S2, S3, S4, S5, S6);
-       
-    %currents of motor phases
-    v_a(i) = bldc.u(1);
-    v_b(i) = bldc.u(2);
-    v_c(i) = bldc.u(3);
+    %time sequence
+    time_arr(i) = (i - 1) * dt;
     
     %currents of motor phases
-    i_a(i) = bldc.x(1);
-    i_b(i) = bldc.x(2);
-    i_c(i) = bldc.x(3);
-
-    %motor speed
-    omega_m(i) = bldc.x(4);
-    %motor position
-    theta_r(i) = bldc.x(5);
+    V_a(i) = bldc.u(1);
+    V_b(i) = bldc.u(2);
+    V_c(i) = bldc.u(3);
+    
+    %state variables
+    I_a(i) = bldc.x(1); %current of phase A
+    I_b(i) = bldc.x(2); %current of phase B
+    I_c(i) = bldc.x(3); %current of phase C
+    omega_m(i) = bldc.x(4); %motor speed
+    theta_r(i) = bldc.x(5); %rotor position
     
     %back EMF
     e_a(i) = bldc.e(1);
@@ -320,13 +287,10 @@ for i = 1: ITERATION_TIMES
     
     %motor torque
     torque(i) = bldc.torque;
-    
-    %time sequence
-    time_arr(i) = (i - 1) * dt;
 end
 
 figure('Name', 'Desired current');
-plot(time_arr(:), i_d(:));
+plot(time_arr(:), I_d(:));
 xlim([0 time_arr(end)]);
 ylim([-20 50]);
 xlabel('time [s]');
@@ -335,47 +299,47 @@ ylabel('i_d');
 %3-phase back EMF
 figure('Name', '3 phase currents');
 subplot (3, 1, 1);
-plot(time_arr(:), i_a(:), time_arr(:), i_a_d(:));
+plot(time_arr(:), I_a(:), time_arr(:), I_a_d(:));
 legend('Actual current', 'Desired current');
 xlim([0 time_arr(end)]);
 ylim([-5 5]);
 xlabel('time [s]');
-ylabel('i_a');
+ylabel('I_a');
 subplot (3, 1, 2);
-plot(time_arr(:), i_b(:), time_arr(:), i_b_d(:));
+plot(time_arr(:), I_b(:), time_arr(:), I_b_d(:));
 legend('Actual current', 'Desired current');
 xlim([0 time_arr(end)]);
 ylim([-5 5]);
 xlabel('time [s]');
-ylabel('i_b');
+ylabel('I_b');
 subplot (3, 1, 3);
-plot(time_arr(:), i_c(:), time_arr(:), i_c_d(:));
+plot(time_arr(:), I_c(:), time_arr(:), I_c_d(:));
 legend('Actual current', 'Desired current');
 xlim([0 time_arr(end)]);
 ylim([-5 5]);
 xlabel('time [s]');
-ylabel('i_c');
+ylabel('I_c');
 
 %control voltage
 figure('Name', 'Control votage');
 subplot (3, 1, 1);
-plot(time_arr(:), v_a(:));
+plot(time_arr(:), V_a(:));
 xlim([0 time_arr(end)]);
 ylim([-110 110]);
 xlabel('time [s]');
-ylabel('v_a');
+ylabel('V_a');
 subplot (3, 1, 2);
-plot(time_arr(:), v_b(:));
+plot(time_arr(:), V_b(:));
 xlim([0 time_arr(end)]);
 ylim([-110 110]);
 xlabel('time [s]');
-ylabel('v_b');
+ylabel('V_b');
 subplot (3, 1, 3);
-plot(time_arr(:), v_c(:));
+plot(time_arr(:), V_c(:));
 xlim([0 time_arr(end)]);
 ylim([-110 110]);
 xlabel('time [s]');
-ylabel('v_c');
+ylabel('V_c');
 
 figure('Name', 'Motor speed');
 plot(time_arr(:), 9.5493 .* omega_m(:), time_arr(:), 9.5493 .* w_d(:));
@@ -436,21 +400,21 @@ xlabel('time [s]');
 ylabel('f_c');
 
 %3-phase normalized back EMF
-figure('Name', 'Normalized back EMF');
+figure('Name', 'Hall signal');
 subplot (3, 1, 1);
-plot(time_arr(:), phase_a(:));
+plot(time_arr(:), hall_a(:));
 xlim([0 time_arr(end)]);
 ylim([-0.2 1.3]);
 xlabel('time [s]');
 ylabel('Phase A');
 subplot (3, 1, 2);
-plot(time_arr(:), phase_b(:));
+plot(time_arr(:), hall_b(:));
 xlim([0 time_arr(end)]);
 ylim([-0.2 1.3]);
 xlabel('time [s]');
 ylabel('Phase B');
 subplot (3, 1, 3);
-plot(time_arr(:), phase_c(:));
+plot(time_arr(:), hall_c(:));
 xlim([0 time_arr(end)]);
 ylim([-0.2 1.3]);
 xlabel('time [s]');

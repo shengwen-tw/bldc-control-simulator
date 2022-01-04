@@ -34,15 +34,7 @@ classdef bldc_dynamics
         x_dot = zeros(5, 1);
         
         torque = 0;        %torque of the motor
-        
-        %MOSFET signals
-        S1 = 0;
-        S2 = 0;
-        S3 = 0;
-        S4 = 0;
-        S5 = 0;
-        S6 = 0;
-        
+                
         %BLDC control voltage
         v_bldc = 100;
     end
@@ -51,99 +43,50 @@ classdef bldc_dynamics
         function ret_obj = init(obj, dt)
             obj.dt = dt;
             
+            %J
             obj.J = obj.Jm + obj.Jl;
             
+            %A
             obj.A(1, 1) = -obj.R/(obj.L-obj.M);
             obj.A(2, 2) = -obj.R/(obj.L-obj.M);
             obj.A(3, 3) = -obj.R/(obj.L-obj.M);
-            %
-            %A(4, 1) = lambda_div_J * obj.f_a; %change dynamically
-            %A(4, 2) = lambda_div_J * obj.f_b; %change dynamically
-            %A(4, 3) = lambda_div_J * obj.f_c; %change dynamically
             obj.A(4, 4) = -obj.B_vis/obj.J;
-            %
             obj.A(5, 4) = obj.P/2;
             
+            %B
             obj.B(1, 1) = 1/(obj.L-obj.M);
             obj.B(2, 2) = 1/(obj.L-obj.M);
             obj.B(3, 3) = 1/(obj.L-obj.M);
             obj.B(4, 4) = 1;
              
+            %C
             obj.C(1, 1) = -1/(obj.L-obj.M);
             obj.C(2, 2) = -1/(obj.L-obj.M);
             obj.C(3, 3) = -1/(obj.L-obj.M);
             
             ret_obj = obj;
         end
-             
-        function signal = synthesis_gate_signal(obj, S1, S2, S3, S4, S5, S6)
-            signal = bitshift(S6, 5) + ...
-                     bitshift(S5, 4) + ...
-                     bitshift(S4, 3) + ...
-                     bitshift(S3, 2) + ...
-                     bitshift(S2, 1) + ...
-                     bitshift(S1, 0);
-        end
         
-        function ret_obj = set_mosfet_gate(obj, S1, S2, S3, S4, S5, S6)
-            obj.S1 = S1;
-            obj.S2 = S2;
-            obj.S3 = S3;
-            obj.S4 = S4;
-            obj.S5 = S5;
-            obj.S6 = S6;
+        function ret_obj = new_dynamics(obj)                        
+            %calculate normalized back-emf voltage
+            obj.f_a = obj.back_emf_fa(obj.x(5));
+            obj.f_b = obj.back_emf_fb(obj.x(5));
+            obj.f_c = obj.back_emf_fc(obj.x(5));
             
-            %signal = obj.synthesis_gate_signal(S1, S2, S3, S4, S5, S6);
-            %disp(signal);
+            %calculate back-emf voltage
+            omega_times_lambda = obj.x(4) * obj.lambda_m;
+            obj.e(1) = omega_times_lambda * obj.f_a;
+            obj.e(2) = omega_times_lambda * obj.f_b;
+            obj.e(3) = omega_times_lambda * obj.f_c;
             
-            ret_obj = obj;
-        end
-        
-        function ret_obj = gate_signal_to_control_voltage(obj)
-            signal = obj.synthesis_gate_signal(obj.S1, obj.S2, obj.S3, obj.S4, obj.S5, obj.S6);
-            
-            switch signal
-                case 9 %i_a(+), i_b(-)
-                    obj.u(1) = +obj.v_bldc;
-                    obj.u(2) = -obj.v_bldc;
-                    obj.u(3) = 0;
-                case 33 %i_a(+), i_c(-)
-                    obj.u(1) = +obj.v_bldc;
-                    obj.u(2) = 0;
-                    obj.u(3) = -obj.v_bldc;
-                case 36 %i_b(+), i_c(-)
-                    obj.u(1) = 0;
-                    obj.u(2) = +obj.v_bldc;
-                    obj.u(3) = -obj.v_bldc;
-                case 6 %i_b(+), i_a(-)
-                    obj.u(1) = -obj.v_bldc;
-                    obj.u(2) = +obj.v_bldc;
-                    obj.u(3) = 0;
-                case 18 %i_c(+), i_a(-)
-                    obj.u(1) = -obj.v_bldc;
-                    obj.u(2) = 0;
-                    obj.u(3) = +obj.v_bldc;
-                case 24 %i_c(+), i_b(-)
-                    obj.u(1) = 0;
-                    obj.u(2) = -obj.v_bldc;
-                    obj.u(3) = +obj.v_bldc;
-                otherwise
-                    warning('unexpected gate signal combination.');
-            end
-            
-            ret_obj = obj;
-        end
-        
-        function ret_obj = update_dynamics(obj)                        
-            %A matrix is time variant, update the entry corresponding to
-            %the back EMF
+            %update the time-variant entry of the matrix A
             lambda_div_J = obj.lambda_m / obj.J;
             obj.A(4, 1) = lambda_div_J * obj.f_a;
             obj.A(4, 2) = lambda_div_J * obj.f_b;
             obj.A(4, 3) = lambda_div_J * obj.f_c;
            
             %x_dot = Ax + Bu + Ce
-            obj.x_dot = obj.A*obj.x + obj.B*obj.u + obj.C*obj.e;
+            obj.x_dot = (obj.A*obj.x) + (obj.B*obj.u) + (obj.C*obj.e);
             
             ret_obj = obj;
         end
@@ -158,27 +101,18 @@ classdef bldc_dynamics
         end
         
         function ret_obj = update(obj)
-            %convert MOSFET control signals to voltage
-            %obj = obj.gate_signal_to_control_voltage();
-            
-            %update the back EMF according to the motor angle
-            obj.f_a = obj.back_emf_fa(obj.x(5));
-            obj.f_b = obj.back_emf_fb(obj.x(5));
-            obj.f_c = obj.back_emf_fc(obj.x(5));
-            %            
-            omega_times_lambda = obj.x(4) * obj.lambda_m;
-            obj.e(1) = omega_times_lambda * obj.f_a;
-            obj.e(2) = omega_times_lambda * obj.f_b;
-            obj.e(3) = omega_times_lambda * obj.f_c;
-            
-            obj = obj.update_dynamics();
+            obj = obj.new_dynamics();
             obj.x = obj.integrator(obj.x, obj.x_dot, obj.dt);
                         
-            %restrict motor position in +-pi
-            obj.x(5) = mod(obj.x(5), 2*pi);
+            %restrict rotor position in [0, 2*pi]
+            if obj.x(5) >= 2*pi
+                obj.x(5) = obj.x(5) - 2*pi;
+            elseif obj.x(5) < 0
+                obj.x(5) = obj.x(5) + 2*pi;
+            end
             
-            %update torque of the motor
-            sum_of_e_times_i = obj.e(1) * obj.x(1) +  obj.e(2) * obj.x(2) + obj.e(3) * obj.x(3);
+            %calculate the motor torque
+            sum_of_e_times_i = obj.e(1)*obj.x(1) +  obj.e(2)*obj.x(2) + obj.e(3)*obj.x(3);
             obj.torque = sum_of_e_times_i / obj.x(4);
             
             ret_obj = obj;
