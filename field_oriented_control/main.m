@@ -93,8 +93,8 @@ V_abc_d = [0; 0; 0];
 % Id, Iq control parameters %
 %===========================%
 
-Id_d = 0; %desired Id current
-Iq_d = 5; %desired Iq current
+Id_d = 0;  %desired Id current
+Iq_d = -5; %desired Iq current
 %
 Kp_Idq = 10; %Kp gain of the Id and Iq controller
 Ki_Idq = 0; %Ki gain of the Id and Iq controller
@@ -135,8 +135,8 @@ while i <= ITERATION_TIMES
             e_Iq = Iq_d - I_dqz(2);
             V_d = V_d_last + (Kp_Idq * (e_Id - e_Id_last)) + (Ki_Idq * e_Id);
             V_q = V_q_last + (Kp_Idq * (e_Iq - e_Iq_last)) + (Ki_Idq * e_Iq);
-            V_d = bldc.bound(V_d, -2/3*bldc.v_bldc, 2/3*bldc.v_bldc);
-            V_q = bldc.bound(V_q, -2/3*bldc.v_bldc, 2/3*bldc.v_bldc);
+            %V_d = bldc.bound(V_d, -2/3*bldc.v_bldc, 2/3*bldc.v_bldc);
+            %V_q = bldc.bound(V_q, -2/3*bldc.v_bldc, 2/3*bldc.v_bldc);
             e_Id_last = e_Id;
             e_Iq_last = e_Iq;
             V_d_last = V_d;
@@ -154,13 +154,14 @@ while i <= ITERATION_TIMES
                         
             %convert the control signal from alpha-beta coordinate to the
             %space vector
-            %V_ref = sqrt(V_alpha_d*V_alpha_d + V_beta_d*V_beta_d);
-            %SV_angle = atan2(V_beta_d, V_alpha_d);
-            
+            V_ref = sqrt(V_alpha_d*V_alpha_d + V_beta_d*V_beta_d);
+            SV_angle = atan2(V_beta_d, V_alpha_d); %get desired space vector angle in the range of [-pi, pi]
+            SV_angle = mod(SV_angle + 2*pi, 2*pi); %convert the desired space vector angle in the range of [0, 2*pi]
+                                                   %check: https://stackoverflow.com/a/25725005
             %generate test signal of Uref
-            Vref = 100 / sqrt(3);
-            SV_angle = SV_angle + deg2rad(1);
-            SV_angle = mod(SV_angle, 2*pi);
+            %Vref = 100 / sqrt(3);
+            %SV_angle = SV_angle + deg2rad(1);
+            %SV_angle = mod(SV_angle, 2*pi);
             
             %execute field-oriented control algorithm
             bldc = bldc.generate_SVPWM_signal(Vref, SV_angle);

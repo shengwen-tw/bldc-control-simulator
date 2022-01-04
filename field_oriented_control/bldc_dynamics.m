@@ -116,8 +116,12 @@ classdef bldc_dynamics
             obj = obj.new_dynamics();
             obj.x = obj.integrator(obj.x, obj.x_dot, dt);
                         
-            %restrict rotor position in +-pi
-            obj.x(5) = mod(obj.x(5), 2*pi);
+            %restrict rotor position in [0, 2*pi]
+            if obj.x(5) >= 2*pi
+                obj.x(5) = obj.x(5) - 2*pi;
+            elseif obj.x(5) < 0
+                obj.x(5) = obj.x(5) + 2*pi;
+            end
             
             %calculate the motor torque
             sum_of_e_times_i = obj.e(1)*obj.x(1) +  obj.e(2)*obj.x(2) + obj.e(3)*obj.x(3);
