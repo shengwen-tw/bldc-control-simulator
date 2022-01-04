@@ -9,6 +9,10 @@ PWM_FREQ = 1000;      %[Hz], PWM frequency of the BLDC model
 SVPWM_STEPS = 7;      %should not change (7-segment SVPWM)
 ITERATION_TIMES = PWM_FREQ * SIMULATION_TIME * SVPWM_STEPS;
 
+SPEED_CONTROL_MODE = 0;
+CURRENT_CONTROL_MODE = 1;
+simulation_mode = SPEED_CONTROL_MODE;
+
 %============%
 % Plot datas %
 %============%
@@ -89,6 +93,16 @@ SV_angle = 0;
 
 V_abc_d = [0; 0; 0];
 
+%==========================%
+% speed control parameters %
+%==========================%
+RPM_d = 15;
+Kp_speed = 0.08;
+Ki_speed = 0.0003;
+e_RPM = 0;
+e_RPM_last = 0;
+Iq_d_last = 0;
+
 %===========================%
 % Id, Iq control parameters %
 %===========================%
@@ -135,6 +149,24 @@ while i <= ITERATION_TIMES
     %main loop has 7 procedures to handle 7-segment SVPWM
     switch(SVPWM_state)
         case 1
+            %===============%
+            % speed control %
+            %===============%
+            
+            if simulation_mode == SPEED_CONTROL_MODE
+                %speed error (RPM)
+                e_RPM = RPM_d - (bldc.x(4) * 9.5493);
+                e_RPM = e_RPM * -1;
+                
+                %incremental PI control
+                Iq_d = Iq_d_last + (Kp_speed * (e_RPM - e_RPM_last)) + (Ki_speed * e_RPM);
+                %Iq_d = Iq_d * -1; %negative current for positive rotation angle, and vice versa
+                
+                %save for next iteration
+                e_RPM_last = e_RPM;
+                Iq_d_last = Iq_d;
+            end
+            
             %=================================%
             % dq current control (PI control) %
             %=================================%
