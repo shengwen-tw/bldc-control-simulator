@@ -69,7 +69,17 @@ classdef bldc_dynamics
             
             ret_obj = obj;
         end
-                            
+        
+        function retval = bound(obj, x, min, max)
+            if x < min
+                retval = min;
+            elseif x > max
+                retval = max;
+            else
+                retval = x;
+            end
+        end
+        
         function ret_obj = new_dynamics(obj)                        
             %update the time-variant entry of the matrix A
             lambda_div_J = obj.lambda_m / obj.J;
