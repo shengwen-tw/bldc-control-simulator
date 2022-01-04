@@ -93,10 +93,15 @@ V_abc_d = [0; 0; 0];
 % Id, Iq control parameters %
 %===========================%
 
+%note: the maximum output current has its physical limitation.
+%therefore, it is required to know the maximum current the system
+%can provide before tunning the speed control loop.
+I_dq_max = 1.7; %maximum desired current
+
 Id_d = 0;  %desired Id current
-Iq_d = -5; %desired Iq current
+Iq_d = -1.7; %desired Iq current
 %
-Kp_Idq = 10; %Kp gain of the Id and Iq controller
+Kp_Idq = 20; %Kp gain of the Id and Iq controller
 Ki_Idq = 0; %Ki gain of the Id and Iq controller
 %
 e_Id = 0;
@@ -130,19 +135,32 @@ while i <= ITERATION_TIMES
     %main loop has 7 procedures to handle 7-segment SVPWM
     switch(SVPWM_state)
         case 1
-            %dq current control
+            %=================================%
+            % dq current control (PI control) %
+            %=================================%
+            
+            %current error
             e_Id = Id_d - I_dqz(1);
             e_Iq = Iq_d - I_dqz(2);
+            
+            %incremental PI control
             V_d = V_d_last + (Kp_Idq * (e_Id - e_Id_last)) + (Ki_Idq * e_Id);
             V_q = V_q_last + (Kp_Idq * (e_Iq - e_Iq_last)) + (Ki_Idq * e_Iq);
-            %V_d = bldc.bound(V_d, -2/3*bldc.v_bldc, 2/3*bldc.v_bldc);
-            %V_q = bldc.bound(V_q, -2/3*bldc.v_bldc, 2/3*bldc.v_bldc);
+            
+            %output saturation
+            V_d = bldc.bound(V_d, -2/3*bldc.v_bldc, 2/3*bldc.v_bldc);
+            V_q = bldc.bound(V_q, -2/3*bldc.v_bldc, 2/3*bldc.v_bldc);
+            
+            %save for next iteration
             e_Id_last = e_Id;
             e_Iq_last = e_Iq;
             V_d_last = V_d;
             V_q_last = V_q;
             
-            %inverse park transformation of the voltage control signal
+            %====================================================%
+            % inverse Park Transformation of the control voltage %
+            %====================================================%
+            
             V_dqz = [V_d; V_q; 0];
             V_alpha_beta_gamma_d = bldc.inv_park_transform(V_dqz, bldc.x(5));
             V_alpha_d = V_alpha_beta_gamma_d(1);
@@ -152,19 +170,28 @@ while i <= ITERATION_TIMES
             %convert V_alpha_beta_gamma to Vabc for debugging
             V_abc_d = bldc.inv_clarke_transform(V_alpha_beta_gamma_d);
                         
-            %convert the control signal from alpha-beta coordinate to the
-            %space vector
+            %======================================================================%
+            % calculate the norm and the polar angle of the reference space vector %
+            %======================================================================%
+            
             V_ref = sqrt(V_alpha_d*V_alpha_d + V_beta_d*V_beta_d);
             SV_angle = atan2(V_beta_d, V_alpha_d); %get desired space vector angle in the range of [-pi, pi]
             SV_angle = mod(SV_angle + 2*pi, 2*pi); %convert the desired space vector angle in the range of [0, 2*pi]
                                                    %check: https://stackoverflow.com/a/25725005
-            %generate test signal of Uref
+            
+            %test reference space vector signal (open-loop)
             %Vref = 100 / sqrt(3);
             %SV_angle = SV_angle + deg2rad(1);
             %SV_angle = mod(SV_angle, 2*pi);
             
-            %execute field-oriented control algorithm
+            %===========================================================%
+            % generate SVPWM signal to track the reference space vector %
+            %===========================================================%
             bldc = bldc.generate_SVPWM_signal(Vref, SV_angle);
+            
+            %=========================================================%
+            % prepare control signal for updating the dynamics system %
+            %=========================================================%
             
             %SVPWM output (1/7)
             bldc.u(1:3) = bldc.u_SVPWM(1, 1:3).';
