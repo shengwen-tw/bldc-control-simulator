@@ -86,6 +86,7 @@ I_z = zeros(1, ITERATION_TIMES);
 %process model
 bldc = bldc_dynamics;
 bldc = bldc.init(PWM_FREQ);
+bldc.u(4) = 0; %no external torque
 
 SVPWM_state = 1;
 V_ref = 0;
@@ -96,7 +97,7 @@ V_abc_d = [0; 0; 0];
 %==========================%
 % speed control parameters %
 %==========================%
-RPM_d = 15;
+RPM_d = 0;
 Kp_speed = 0.08;
 Ki_speed = 0.0003;
 e_RPM = 0;
@@ -149,6 +150,41 @@ while i <= ITERATION_TIMES
     %main loop has 7 procedures to handle 7-segment SVPWM
     switch(SVPWM_state)
         case 1
+            %===========================%
+            % speed trajectory planning %
+            %===========================%
+            
+            DT = 1/PWM_FREQ;
+            
+            %fixed speed target
+            if 0
+                RPM_d = 25;
+            end
+            
+            %step impulse
+            if 0
+                time = (i/7) * DT;
+                if time < (SIMULATION_TIME / 2)
+                    RPM_d = 0;
+                else
+                    RPM_d = 50;
+                end
+            end
+            
+            %linear speed trajectory planning
+            if 0
+                traj_slope = 10;
+                traj_x = (i/7) * DT;
+                RPM_d = traj_slope * traj_x;
+            end
+            
+            %nonlinear speed trajectory planning
+            if 1
+                traj_coeff = 50;
+                traj_speed = 1;
+                RPM_d = traj_coeff * abs(sin(traj_speed * i * DT));
+            end
+            
             %===============%
             % speed control %
             %===============%
